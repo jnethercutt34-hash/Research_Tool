@@ -35,9 +35,11 @@ import io
 import json
 import json as _json
 import os
+import logging
 import sys
 import threading
 import webbrowser
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from threading import Timer
 from typing import Optional
@@ -47,12 +49,32 @@ import io as _io
 import math
 import statistics
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import phase4_db
+
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+
+_log_dir = Path("output")
+_log_dir.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger("rad_research")
+logger.setLevel(logging.INFO)
+
+_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+_file_handler = RotatingFileHandler(str(_log_dir / "app.log"), maxBytes=5_000_000, backupCount=3, encoding="utf-8")
+_file_handler.setFormatter(_fmt)
+logger.addHandler(_file_handler)
+
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setFormatter(_fmt)
+logger.addHandler(_console_handler)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -82,7 +104,7 @@ def load_env() -> str:
                 os.environ.setdefault(k.strip(), v.strip())
     key = os.environ.get("GEMINI_API_KEY", "")
     if not key:
-        print("[ERROR] GEMINI_API_KEY not set in .env")
+        logger.error("GEMINI_API_KEY not set in .env")
         sys.exit(1)
     return key
 
@@ -205,7 +227,7 @@ def _run_repo_build() -> None:
         with _repo_lock:
             _repo_state["running"] = False
             _repo_state["errors"] += 1
-        print(f"[Repo] Failed to load chunks.json: {exc}")
+        logger.error(f"Failed to load chunks.json: {exc}")
         return
 
     # Group chunks by filename
@@ -235,7 +257,7 @@ def _run_repo_build() -> None:
                 summary=meta["summary"],
             )
         except Exception as exc:
-            print(f"[Repo] Error indexing {fname}: {exc}")
+            logger.warning(f"Error indexing {fname}: {exc}")
             with _repo_lock:
                 _repo_state["errors"] += 1
 
@@ -244,7 +266,7 @@ def _run_repo_build() -> None:
 
     with _repo_lock:
         _repo_state["running"] = False
-    print(f"[Repo] Build complete: {_repo_state['done']} files indexed, {_repo_state['errors']} errors.")
+    logger.info(f"Repo build complete: {_repo_state['done']} files indexed, {_repo_state['errors']} errors.")
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +275,15 @@ def _run_repo_build() -> None:
 
 app = FastAPI(title="RAD Research Tool — Phase 3")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": type(exc).__name__, "detail": str(exc)},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -851,5 +882,5 @@ if __name__ == "__main__":
         webbrowser.open(f"http://localhost:{PORT}")
 
     Timer(1.5, open_browser).start()
-    print(f"\n  RAD Research Tool -> http://localhost:{PORT}\n")
+    logger.info(f"RAD Research Tool -> http://localhost:{PORT}")
     uvicorn.run("phase3_app:app", host="0.0.0.0", port=PORT, reload=False)

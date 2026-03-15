@@ -482,3 +482,49 @@ Matching the GMDS Hardware Assistant:
 - **Cards:** Rounded corners, subtle hover glow, icon + step number + title + description + bullet features
 - **Typography:** Inter/system font stack, heading hierarchy
 - **Icons:** Lucide React icon set
+
+---
+
+## 12. Plan Amendments (CEO Review — 2026-03-15)
+
+The following amendments were approved during the HOLD SCOPE CEO plan review:
+
+### Architecture
+1. **State Management:** Add `@tanstack/react-query` for server state caching. Wrap app in `QueryClientProvider`. Create query hooks in `src/lib/queries.js`.
+2. **Chat Streaming:** Use Server-Sent Events (SSE) via FastAPI `StreamingResponse`. Frontend uses `fetch` + `ReadableStream` for token-by-token rendering.
+3. **Production Serving:** `npm run build` outputs to `static/dist/`. FastAPI serves the built SPA with a catch-all route. Single-process deployment via `start.bat`.
+
+### Error Handling & Security
+4. **Global Exception Handler:** ✅ DONE — `@app.exception_handler(Exception)` returns structured JSON `{"error": str, "detail": str}`. All errors logged.
+5. **Bearer Token Auth:** Add `API_TOKEN` to `.env`, FastAPI middleware checks `Authorization: Bearer <token>`. (Tracked in TODOS.md)
+6. **Wiki XSS Prevention:** Add `rehype-sanitize` plugin to `react-markdown` for wiki content rendering.
+
+### Data Quality & Performance
+7. **Fingerprint Validation:** Add physics-based input bounds for all 15 metrics (e.g., Bias Cliff 0-6V, PSRR 0-100dB). Warn on out-of-range, block on impossible values.
+8. **N+1 Query Fix:** ✅ DONE — `list_duts()`, `list_test_runs()`, `get_all_dut_fingerprints()` rewritten with JOINs. 600 queries → 2 queries.
+9. **Wiki Full-Text Search:** Use SQLite FTS5 virtual table with sync triggers instead of LIKE queries.
+
+### Infrastructure
+10. **Git Repository:** ✅ DONE — `git init` with `.gitignore`. Initial commit preserves pre-rewrite baseline.
+11. **Logging:** ✅ DONE — Python `logging` module with `RotatingFileHandler` to `output/app.log`. All `print()` calls replaced.
+12. **Backend Tests:** Add `pytest` test suite for data layer (fingerprint CRUD, statistics, CSV export). (Tracked in TODOS.md)
+
+### Scope Changes
+13. **Wiki Graph View:** Deferred to Phase 4 Polish. Backlinks panel covers navigation needs.
+
+### Updated Frontend Dependencies
+```json
+{
+  "react": "^18",
+  "react-dom": "^18",
+  "react-router-dom": "^6",
+  "lucide-react": "latest",
+  "recharts": "^2",
+  "react-markdown": "^9",
+  "rehype-sanitize": "^6",
+  "@tanstack/react-query": "^5",
+  "class-variance-authority": "latest",
+  "clsx": "latest",
+  "tailwind-merge": "latest"
+}
+```

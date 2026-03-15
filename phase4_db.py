@@ -165,17 +165,13 @@ def delete_component(cid: int) -> None:
 def list_test_runs() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM test_runs ORDER BY created_at DESC"
+            "SELECT tr.*, COALESCE(cnt.component_count, 0) AS component_count "
+            "FROM test_runs tr "
+            "LEFT JOIN (SELECT test_run_id, COUNT(*) AS component_count FROM test_run_components GROUP BY test_run_id) cnt "
+            "ON tr.id = cnt.test_run_id "
+            "ORDER BY tr.created_at DESC"
         ).fetchall()
-        result = []
-        for r in rows:
-            run = dict(r)
-            run["component_count"] = conn.execute(
-                "SELECT COUNT(*) FROM test_run_components WHERE test_run_id=?",
-                (run["id"],),
-            ).fetchone()[0]
-            result.append(run)
-        return result
+        return [dict(r) for r in rows]
 
 
 def get_test_run(rid: int) -> dict | None:
@@ -353,15 +349,14 @@ def add_dut(part_number: str = "TPS7A53-Q1", serial_number: str = "",
 
 def list_duts() -> list[dict]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM duts ORDER BY created_at DESC").fetchall()
-        result = []
-        for r in rows:
-            d = dict(r)
-            d["run_count"] = conn.execute(
-                "SELECT COUNT(*) FROM fingerprint_runs WHERE dut_id=?", (d["id"],)
-            ).fetchone()[0]
-            result.append(d)
-        return result
+        rows = conn.execute(
+            "SELECT d.*, COALESCE(cnt.run_count, 0) AS run_count "
+            "FROM duts d "
+            "LEFT JOIN (SELECT dut_id, COUNT(*) AS run_count FROM fingerprint_runs GROUP BY dut_id) cnt "
+            "ON d.id = cnt.dut_id "
+            "ORDER BY d.created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def get_dut(did: int) -> dict | None:
@@ -423,16 +418,24 @@ def get_fingerprint_summary(dut_id: int) -> dict:
 
 def get_all_dut_fingerprints() -> list[dict]:
     import statistics as _stats
-    duts = list_duts()
+    with get_conn() as conn:
+        dut_rows = conn.execute("SELECT * FROM duts ORDER BY created_at DESC").fetchall()
+        fp_rows = conn.execute(
+            "SELECT * FROM fingerprint_runs WHERE run_number IN (2,3,4,5) ORDER BY dut_id, run_number"
+        ).fetchall()
+    # Group fingerprint runs by dut_id
+    fp_by_dut: dict[int, list[dict]] = {}
+    for r in fp_rows:
+        fp_by_dut.setdefault(r["dut_id"], []).append(dict(r))
     result = []
-    for dut in duts:
-        runs = get_fingerprint_runs(dut["id"])
-        valid = [r for r in runs if r["run_number"] in (2, 3, 4, 5)]
+    for dut in dut_rows:
+        d = dict(dut)
+        valid = fp_by_dut.get(d["id"], [])
         row: dict = {
-            "serial_number": dut["serial_number"],
-            "part_number":   dut["part_number"],
-            "silicon_rev":   dut["silicon_rev"],
-            "board_id":      dut["board_id"],
+            "serial_number": d["serial_number"],
+            "part_number":   d["part_number"],
+            "silicon_rev":   d["silicon_rev"],
+            "board_id":      d["board_id"],
         }
         for col in _FP_COLS:
             vals = [r[col] for r in valid if r[col] is not None]
