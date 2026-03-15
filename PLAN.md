@@ -528,3 +528,105 @@ The following amendments were approved during the HOLD SCOPE CEO plan review:
   "tailwind-merge": "latest"
 }
 ```
+
+---
+
+## 13. Implementation Specifications (Eng Review — 2026-03-15)
+
+### 13.1 Chat SSE Protocol
+
+**Request:**
+```
+POST /api/chat/conversations/{id}/messages
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{"content": "Explain NMOS pass element physics", "provider": "claude"|"gemini"}
+```
+
+**Response:** `text/event-stream`
+```
+data: {"token": "The"}
+data: {"token": " NMOS"}
+data: {"token": " pass"}
+...
+data: {"done": true, "message_id": 42}
+```
+
+**Error event:**
+```
+data: {"error": "Rate limit exceeded", "code": 429}
+```
+
+**Persistence:** Full response saved to `chat_messages` after stream completes. If stream is interrupted (client disconnect), save partial response with `[interrupted]` suffix.
+
+**Cancellation:** Frontend uses `AbortController.abort()`. Backend catches `asyncio.CancelledError`, saves partial response, closes stream cleanly.
+
+**Provider routing:**
+- `"gemini"` → `google.genai` streaming via `generate_content(stream=True)`
+- `"claude"` → `anthropic.messages.stream()` with async iteration
+- If provider API key is missing → immediate `data: {"error": "...", "code": 503}` event
+
+---
+
+### 13.2 Wiki Link Protocol
+
+**Syntax:** `[[Page Name]]` anywhere in Markdown content.
+
+**Extraction regex:** `\[\[([^\]]+)\]\]` (non-greedy, no nested brackets)
+
+**Slug resolution:** `Page Name` → `page-name` (lowercase, spaces → hyphens, strip non-alphanumeric except hyphens)
+
+**On page save (single transaction):**
+1. Parse content for `[[...]]` patterns
+2. Skip any `[[...]]` inside fenced code blocks (between ``` markers)
+3. Resolve each link text to a target slug
+4. `DELETE FROM wiki_links WHERE source_id = ?`
+5. For each resolved target slug:
+   - Look up `wiki_pages.id` by slug
+   - If exists: `INSERT INTO wiki_links (source_id, target_id)`
+   - If not exists: skip (dead link — rendered as "create page" link in frontend)
+6. Update FTS5 index via trigger (automatic)
+
+**Dead links:** Frontend renders `[[Nonexistent Page]]` as a clickable link that navigates to `/wiki/create?title=Nonexistent+Page`.
+
+**Page rename:**
+1. Update `wiki_pages.slug` and `wiki_pages.title`
+2. Find all pages linking to old slug: `SELECT source_id FROM wiki_links WHERE target_id = ?`
+3. In each source page content: replace `[[Old Name]]` with `[[New Name]]`
+4. Re-run link extraction on each modified source page
+
+---
+
+### 13.3 Vite Proxy Configuration
+
+```js
+// frontend/vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000',
+      '/static': 'http://localhost:8000',
+    }
+  }
+})
+```
+
+### 13.4 SPA Catch-All Route
+
+```python
+# In phase3_app.py — MUST be registered LAST (after all /api/* routes)
+@app.get("/{path:path}")
+async def spa_catchall(path: str):
+    if path.startswith("api/"):
+        raise HTTPException(404, f"API route not found: /{path}")
+    dist = Path("static/dist/index.html")
+    if dist.exists():
+        return FileResponse(str(dist))
+    # Fallback to old index.html during development
+    return FileResponse("static/index.html")
+```

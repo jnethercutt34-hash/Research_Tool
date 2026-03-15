@@ -55,6 +55,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import phase4_db
+from routes.chat import router as chat_router
+from routes.wiki import router as wiki_router
+from routes.ml import router as ml_router
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -275,6 +278,11 @@ def _run_repo_build() -> None:
 
 app = FastAPI(title="RAD Research Tool — Phase 3")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Mount feature routers (Phase 3)
+app.include_router(chat_router)
+app.include_router(wiki_router)
+app.include_router(ml_router)
 
 
 @app.exception_handler(Exception)
@@ -763,12 +771,7 @@ async def delete_dut(did: int):
 @app.get("/api/duts/export/csv")
 async def export_fingerprints_csv():
     rows = phase4_db.get_all_dut_fingerprints()
-    _FP_COLS = [
-        "bias_cliff_v", "rise_time_ms", "gnd_curr_slope", "overshoot_v",
-        "thermal_drift", "vout_accuracy", "dropout_v", "line_reg", "load_reg",
-        "gnd_curr_nom", "shutdown_leak", "en_thresh_v", "en_hyst_v",
-        "psrr_db", "noise_vrms",
-    ]
+    _FP_COLS = phase4_db._FP_COLS
     buf = _io.StringIO()
     header = ["serial_number", "part_number", "silicon_rev", "board_id"]
     for col in _FP_COLS:
