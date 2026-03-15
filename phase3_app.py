@@ -222,51 +222,51 @@ def _run_repo_build() -> None:
     """Background thread: reads chunks.json, extracts metadata, populates repo_index."""
     global _repo_state
     try:
-        raw = _json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
-    except Exception as exc:
-        with _repo_lock:
-            _repo_state["running"] = False
-            _repo_state["errors"] += 1
-        logger.error(f"Failed to load chunks.json: {exc}")
-        return
-
-    # Group chunks by filename
-    file_chunks: dict[str, list[dict]] = {}
-    for chunk in raw:
-        fname = chunk.get("filename", "")
-        if fname:
-            file_chunks.setdefault(fname, []).append(chunk)
-
-    already_indexed = phase4_db.get_indexed_filenames()
-    filenames = [f for f in file_chunks.keys() if f not in already_indexed]
-    with _repo_lock:
-        _repo_state["total"] = len(filenames)
-        _repo_state["done"] = 0
-        _repo_state["errors"] = 0
-
-    for fname in filenames:
-        chunks = file_chunks[fname]
         try:
-            meta = _extract_repo_metadata(chunks)
-            phase4_db.insert_repo_entry(
-                filename=fname,
-                test_type=meta["test_type"],
-                part_type=meta["part_type"],
-                part_numbers=meta["part_numbers"],
-                manufacturer=meta["manufacturer"],
-                summary=meta["summary"],
-            )
+            raw = _json.loads(CHUNKS_FILE.read_text(encoding="utf-8"))
         except Exception as exc:
-            logger.warning(f"Error indexing {fname}: {exc}")
             with _repo_lock:
                 _repo_state["errors"] += 1
+            logger.error(f"Failed to load chunks.json: {exc}")
+            return
 
+        # Group chunks by filename
+        file_chunks: dict[str, list[dict]] = {}
+        for chunk in raw:
+            fname = chunk.get("filename", "")
+            if fname:
+                file_chunks.setdefault(fname, []).append(chunk)
+
+        already_indexed = phase4_db.get_indexed_filenames()
+        filenames = [f for f in file_chunks.keys() if f not in already_indexed]
         with _repo_lock:
-            _repo_state["done"] += 1
+            _repo_state["total"] = len(filenames)
+            _repo_state["done"] = 0
+            _repo_state["errors"] = 0
 
-    with _repo_lock:
-        _repo_state["running"] = False
-    logger.info(f"Repo build complete: {_repo_state['done']} files indexed, {_repo_state['errors']} errors.")
+        for fname in filenames:
+            chunks = file_chunks[fname]
+            try:
+                meta = _extract_repo_metadata(chunks)
+                phase4_db.insert_repo_entry(
+                    filename=fname,
+                    test_type=meta["test_type"],
+                    part_type=meta["part_type"],
+                    part_numbers=meta["part_numbers"],
+                    manufacturer=meta["manufacturer"],
+                    summary=meta["summary"],
+                )
+            except Exception as exc:
+                logger.warning(f"Error indexing {fname}: {exc}")
+                with _repo_lock:
+                    _repo_state["errors"] += 1
+
+            with _repo_lock:
+                _repo_state["done"] += 1
+    finally:
+        with _repo_lock:
+            _repo_state["running"] = False
+        logger.info(f"Repo build complete: {_repo_state['done']} files indexed, {_repo_state['errors']} errors.")
 
 
 # ---------------------------------------------------------------------------
