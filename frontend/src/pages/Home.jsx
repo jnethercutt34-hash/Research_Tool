@@ -10,7 +10,9 @@ import {
   Activity,
   ChevronRight,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useStatus, useDuts, useRepoTree } from '@/lib/queries'
+import { api } from '@/lib/api'
 import StatsCard from '@/components/StatsCard'
 import ModuleCard from '@/components/ModuleCard'
 
@@ -87,10 +89,15 @@ export default function Home() {
   const { data: status } = useStatus()
   const { data: duts } = useDuts()
   const { data: repo } = useRepoTree()
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard', 'stats'],
+    queryFn: () => api('/api/dashboard/stats'),
+  })
 
-  const dutCount = duts?.length ?? 0
+  const dutCount = stats?.dut_count ?? duts?.length ?? 0
   const pdfCount = repo?.count ?? 0
   const chunksReady = status?.ready ? 'Ready' : 'Not indexed'
+  const runCount = stats?.run_count ?? 0
 
   return (
     <div className="space-y-8">
@@ -130,7 +137,7 @@ export default function Home() {
         <StatsCard icon={Cpu} label="DUT Units" value={dutCount} />
         <StatsCard icon={FileText} label="PDFs Indexed" value={pdfCount} accent />
         <StatsCard icon={Activity} label="Vector DB" value={chunksReady} />
-        <StatsCard icon={Database} label="Fingerprint Runs" value={0} accent />
+        <StatsCard icon={Database} label="Fingerprint Runs" value={runCount} accent />
       </div>
 
       {/* Module Cards */}

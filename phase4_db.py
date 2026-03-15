@@ -93,6 +93,56 @@ CREATE TABLE IF NOT EXISTS sim_results (
     raw_data     TEXT NOT NULL DEFAULT '',
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+
+CREATE TABLE IF NOT EXISTS wiki_pages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug       TEXT    NOT NULL UNIQUE,
+    title      TEXT    NOT NULL,
+    content    TEXT    NOT NULL DEFAULT '',
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS wiki_tags (
+    page_id INTEGER NOT NULL REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    tag     TEXT    NOT NULL,
+    PRIMARY KEY (page_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_wiki_tags_tag ON wiki_tags(tag);
+
+CREATE TABLE IF NOT EXISTS wiki_links (
+    source_id INTEGER NOT NULL REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    target_id INTEGER NOT NULL REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    PRIMARY KEY (source_id, target_id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_conversations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT    NOT NULL,
+    provider   TEXT    NOT NULL DEFAULT 'gemini',
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES chat_conversations(id) ON DELETE CASCADE,
+    role            TEXT    NOT NULL,
+    content         TEXT    NOT NULL,
+    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ml_results (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_type         TEXT    NOT NULL DEFAULT 'xgboost',
+    r_squared          REAL,
+    rmse               REAL,
+    feature_importance TEXT    NOT NULL DEFAULT '{}',
+    predictions        TEXT    NOT NULL DEFAULT '[]',
+    notes              TEXT    NOT NULL DEFAULT '',
+    created_at         TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 

@@ -58,6 +58,7 @@ import phase4_db
 from routes.chat import router as chat_router
 from routes.wiki import router as wiki_router
 from routes.ml import router as ml_router
+from routes.ml import dash_router
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -286,6 +287,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(chat_router)
 app.include_router(wiki_router)
 app.include_router(ml_router)
+app.include_router(dash_router)
 
 
 @app.exception_handler(Exception)
