@@ -1,0 +1,19 @@
+# Phase 1 — PDF ingestion & chunking
+pdfplumber
+PyMuPDF
+pytesseract
+pdf2image
+Pillow
+langchain-text-splitters
+
+# Phase 2 — Embeddings & vector storage
+google-genai
+lancedb
+python-dotenv
+
+# Phase 3 — Web UI
+fastapi[standard]
+uvicorn
+
+# Phase 4 — Test bed inventory & PDF export
+fpdf2

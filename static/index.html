@@ -1,0 +1,3011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TID Prognostics Platform</title>
+
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Chart.js for simulation waveform rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Reset & base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #121212;
+      --surface:   #1E1E1E;
+      --surface2:  #2A2A2A;
+      --border:    #333333;
+      --maroon:    #8C1D40;
+      --maroon-dk: #6a1530;
+      --gold:      #FFC627;
+      --gold-dim:  rgba(255,198,39,0.25);
+      --text:      #E0E0E0;
+      --text-dim:  #999999;
+      --radius:    6px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    header {
+      background: var(--maroon);
+      padding: 0 24px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      border-bottom: 2px solid var(--gold);
+    }
+
+    /* ── Tab nav ─────────────────────────────────────────────── */
+    #tab-nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      flex-shrink: 0;
+      padding: 0 16px;
+    }
+    .nav-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      padding: 10px 18px;
+      letter-spacing: .03em;
+      transition: color .15s, border-color .15s;
+    }
+    .nav-tab:hover { color: var(--text); }
+    .nav-tab.active {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+
+    /* ── Test Bed section ───────────────────────────────────── */
+    #testbed-view {
+      display: none;
+      flex: 1;
+      overflow: hidden;
+      flex-direction: row;
+    }
+
+    /* Inventory panel */
+    #inventory-panel {
+      width: 380px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-header h2 {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+    }
+    .btn-gold {
+      background: var(--gold);
+      color: #121212;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 12px;
+      font-size: .75rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-gold:hover { background: #e6b020; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: .75rem;
+      cursor: pointer;
+    }
+    .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .btn-danger {
+      background: transparent;
+      border: 1px solid #555;
+      color: #888;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: .75rem;
+      cursor: pointer;
+    }
+    .btn-danger:hover { border-color: #c0392b; color: #c0392b; }
+
+    #inventory-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .inv-row {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .82rem;
+    }
+    .inv-row:hover { border-color: var(--gold); }
+    .inv-name { flex: 1; font-weight: 600; color: var(--text); }
+    .inv-pn   { color: var(--text-dim); font-size: .75rem; }
+    .inv-actions { display: flex; gap: 4px; }
+
+    /* Component form */
+    #comp-form-wrap {
+      display: none;
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+    #comp-form-wrap.open { display: block; }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .field-label {
+      font-size: .7rem;
+      color: var(--text-dim);
+      margin-bottom: 2px;
+    }
+    .field-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: .8rem;
+      padding: 5px 8px;
+      outline: none;
+    }
+    .field-input:focus { border-color: var(--gold); }
+    .form-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+    /* Test Runs panel */
+    #runs-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #runs-list {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .run-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 9px 11px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .run-item:hover, .run-item.active { border-color: var(--gold); }
+    .run-item.active { background: var(--surface); }
+    .run-item-name { font-size: .83rem; font-weight: 600; color: var(--text); }
+    .run-item-meta { font-size: .72rem; color: var(--text-dim); margin-top: 2px; }
+
+    /* Run detail */
+    #run-detail {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    #run-detail.visible { display: flex; }
+    #run-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: .85rem;
+    }
+
+    #run-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #run-title { font-size: 1.1rem; font-weight: 700; color: #fff; }
+    #run-date  { font-size: .78rem; color: var(--text-dim); }
+
+    .section-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    #run-components-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .run-comp-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: .78rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .run-comp-chip .rm { cursor: pointer; color: var(--text-dim); font-size: .85em; }
+    .run-comp-chip .rm:hover { color: #c0392b; }
+
+    #add-comp-to-run-wrap {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    #add-comp-select {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: .8rem;
+      padding: 5px 8px;
+      outline: none;
+    }
+    #add-comp-select:focus { border-color: var(--gold); }
+
+    /* AI plan area */
+    #ai-plan-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    #ai-plan-toolbar {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    #ai-plan-toolbar span { font-size: .75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .07em; }
+    .toolbar-actions { display: flex; gap: 6px; }
+    #ai-plan-content {
+      padding: 14px 16px;
+      font-size: .85rem;
+      line-height: 1.65;
+      color: var(--text);
+      min-height: 80px;
+    }
+    #ai-plan-content p  { margin-bottom: .6em; }
+    #ai-plan-content ul,
+    #ai-plan-content ol { padding-left: 1.4em; margin-bottom: .6em; }
+    #ai-plan-content li { margin-bottom: .2em; }
+    #ai-plan-content h1,
+    #ai-plan-content h2,
+    #ai-plan-content h3 { color: var(--gold); margin: .8em 0 .4em; }
+    #ai-plan-content strong { color: #fff; }
+    #ai-plan-content code  { background: var(--surface2); padding: 1px 4px; border-radius: 3px; font-size: .83em; }
+    .plan-placeholder { color: var(--text-dim); font-style: italic; }
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: .05em;
+      color: #fff;
+    }
+    #db-status {
+      font-size: .78rem;
+      color: rgba(255,255,255,.75);
+    }
+    #db-status span {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    /* ── Search bar ─────────────────────────────────────────── */
+    #search-zone {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+    #search-form {
+      display: flex;
+      gap: 10px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    #query-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: .95rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #query-input:focus { border-color: var(--gold); }
+    #query-input::placeholder { color: var(--text-dim); }
+
+    #search-btn {
+      background: var(--gold);
+      color: #121212;
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 22px;
+      font-weight: 700;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+      white-space: nowrap;
+    }
+    #search-btn:hover  { background: #e6b020; }
+    #search-btn:active { transform: scale(.97); }
+    #search-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Main layout ────────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Results panel ──────────────────────────────────────── */
+    #results-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    /* empty state */
+    #empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--text-dim);
+    }
+    #empty-state svg { opacity: .25; }
+    #empty-state p { font-size: .9rem; }
+
+    /* loading spinner */
+    #loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      height: 120px;
+      color: var(--text-dim);
+      font-size: .9rem;
+    }
+    .spinner {
+      width: 24px; height: 24px;
+      border: 3px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* answer card */
+    #answer-card {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--maroon);
+      border-left: 4px solid var(--maroon);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    #answer-card h2 {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--maroon);
+      margin-bottom: 12px;
+    }
+    #answer-text {
+      font-size: .92rem;
+      line-height: 1.65;
+      color: var(--text);
+    }
+    /* markdown inside answer */
+    #answer-text p   { margin-bottom: .7em; }
+    #answer-text ul,
+    #answer-text ol  { padding-left: 1.4em; margin-bottom: .7em; }
+    #answer-text li  { margin-bottom: .25em; }
+    #answer-text strong { color: #fff; }
+    #answer-text code {
+      background: var(--surface2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .85em;
+    }
+
+    /* add-note button */
+    #add-note-btn {
+      display: none;
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      border-radius: var(--radius);
+      padding: 5px 14px;
+      font-size: .8rem;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    #add-note-btn:hover { background: var(--gold-dim); }
+
+    /* sources section */
+    #sources-section { display: none; }
+    #sources-section h2 {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+    #sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    /* source card */
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: .83rem;
+      transition: border-color .15s;
+    }
+    .source-card:hover { border-color: var(--gold); }
+    .source-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .source-filename {
+      color: var(--gold);
+      font-weight: 600;
+      font-size: .78rem;
+      word-break: break-all;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .source-filename:hover { color: #fff; }
+    .source-page {
+      background: var(--maroon);
+      color: #fff;
+      font-size: .7rem;
+      padding: 2px 7px;
+      border-radius: 10px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .source-snippet {
+      color: var(--text-dim);
+      line-height: 1.55;
+      max-height: 110px;
+      overflow: hidden;
+      position: relative;
+    }
+    .source-snippet::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 30px;
+      background: linear-gradient(transparent, var(--surface));
+    }
+    /* highlighted terms */
+    .hl {
+      background: var(--gold-dim);
+      color: var(--gold);
+      border-radius: 2px;
+      padding: 0 2px;
+    }
+
+    /* ── Notes panel ────────────────────────────────────────── */
+    #notes-panel {
+      width: 300px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #notes-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #notes-header h2 {
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-dim);
+    }
+    #new-note-btn {
+      background: var(--gold);
+      color: #121212;
+      border: none;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: .75rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #new-note-btn:hover { background: #e6b020; }
+
+    /* notes list */
+    #notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .note-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .note-item:hover { border-color: var(--gold); }
+    .note-item-title {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .note-item-preview {
+      font-size: .72rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* note editor overlay */
+    #note-editor-wrap {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    #note-editor-wrap.open { display: flex; }
+
+    #note-editor-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    #note-back-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    #note-back-btn:hover { color: var(--text); }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-dim);
+      font-size: .75rem;
+      padding: 3px 9px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    .tab-btn.active {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    #note-textarea {
+      flex: 1;
+      background: var(--surface2);
+      border: none;
+      color: var(--text);
+      font-family: 'Consolas', monospace;
+      font-size: .82rem;
+      line-height: 1.55;
+      padding: 12px;
+      resize: none;
+      outline: none;
+    }
+    #note-preview {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      font-size: .83rem;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    #note-preview p   { margin-bottom: .6em; }
+    #note-preview ul  { padding-left: 1.2em; }
+    #note-preview strong { color: #fff; }
+
+    #note-save-bar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+    }
+    #note-save-btn {
+      flex: 1;
+      background: var(--gold);
+      border: none;
+      border-radius: var(--radius);
+      color: #121212;
+      font-weight: 700;
+      font-size: .8rem;
+      padding: 7px;
+      cursor: pointer;
+    }
+    #note-save-btn:hover { background: #e6b020; }
+    #note-delete-btn {
+      background: transparent;
+      border: 1px solid #555;
+      border-radius: var(--radius);
+      color: #888;
+      font-size: .8rem;
+      padding: 7px 12px;
+      cursor: pointer;
+    }
+    #note-delete-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+    .saved-flash { color: #4caf50; font-size: .75rem; }
+
+    /* ── Error toast ─────────────────────────────────────────── */
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #c0392b;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      z-index: 999;
+    }
+
+    /* ── Scrollbar ───────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* ── Repo tab ─────────────────────────────────────────────── */
+    #repo-view {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Centered card (empty + building states) */
+    #repo-empty-state,
+    #repo-building-state {
+      display: none;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+    }
+    .repo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 36px 44px;
+      max-width: 480px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .repo-card-icon { font-size: 2.8rem; line-height: 1; }
+    .repo-card h2   { font-size: 1.2rem; color: #fff; }
+    .repo-card p    { font-size: .88rem; color: var(--text-dim); line-height: 1.6; }
+    .repo-card p strong { color: var(--text); }
+    .repo-card-note { font-size: .78rem !important; color: #666 !important; }
+    .repo-card .btn-gold { align-self: center; padding: 9px 28px; font-size: .9rem; }
+
+    /* Progress bar */
+    .repo-progress-bar {
+      width: 100%;
+      height: 10px;
+      background: var(--surface2);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .repo-progress-fill {
+      height: 100%;
+      background: var(--gold);
+      border-radius: 5px;
+      width: 0%;
+      transition: width .4s ease;
+    }
+
+    /* Indexed state: split layout */
+    #repo-indexed-state {
+      display: none;
+      flex: 1;
+      flex-direction: row;
+      overflow: hidden;
+    }
+
+    /* Tree panel */
+    #repo-tree-panel {
+      width: 300px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #repo-tree-header {
+      padding: 8px 10px;
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+    #repo-search-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: .78rem;
+      padding: 5px 8px;
+      outline: none;
+    }
+    #repo-search-input:focus { border-color: var(--gold); }
+    #repo-tree-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+
+    /* Tree items */
+    .tree-toggle {
+      display: inline-block;
+      width: 16px;
+      font-size: .7rem;
+      color: var(--text-dim);
+      transition: transform .15s;
+      cursor: pointer;
+      user-select: none;
+    }
+    .tree-toggle.open { transform: rotate(90deg); }
+
+    .tree-cat-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 10px;
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tree-cat-header:hover { background: var(--surface2); }
+
+    .tree-type-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px 4px 24px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tree-type-header:hover { color: var(--text); background: var(--surface2); }
+
+    .tree-ptype-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px 3px 38px;
+      font-size: .78rem;
+      color: var(--text-dim);
+      cursor: pointer;
+      user-select: none;
+    }
+    .tree-ptype-header:hover { color: var(--text); background: var(--surface2); }
+
+    .tree-part-item {
+      padding: 3px 10px 3px 52px;
+      font-size: .75rem;
+      color: var(--text-dim);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tree-part-item:hover { color: var(--gold); background: var(--surface2); }
+    .tree-part-item.active { color: var(--gold); font-weight: 600; }
+
+    .tree-children { display: none; }
+    .tree-children.open { display: block; }
+
+    /* Content area */
+    #repo-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+    #repo-content-inner {
+      max-width: 900px;
+    }
+    #repo-welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: var(--text-dim);
+      font-size: .9rem;
+      text-align: center;
+    }
+
+    /* Category overview cards */
+    .repo-overview-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+    }
+    .repo-overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .repo-overview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .repo-overview-card:hover { border-color: var(--gold); }
+    .repo-overview-card-label { font-size: .8rem; color: var(--text-dim); margin-bottom: 4px; }
+    .repo-overview-card-count { font-size: 1.4rem; font-weight: 700; color: var(--gold); }
+
+    /* Detail panel */
+    .repo-detail-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 16px;
+    }
+    .repo-detail-filename {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    .repo-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .repo-badge {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+    .repo-badge-cat  { background: var(--maroon); color: #fff; }
+    .repo-badge-type { border: 1px solid var(--gold); color: var(--gold); background: transparent; }
+    .repo-badge-part { border: 1px solid var(--border); color: var(--text-dim); background: transparent; }
+    .repo-badge-pn   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+    .repo-detail-summary {
+      font-size: .88rem;
+      line-height: 1.65;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .repo-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .repo-meta-item { font-size: .8rem; }
+    .repo-meta-label { color: var(--text-dim); font-size: .72rem; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .05em; }
+    .repo-meta-value { color: var(--text); }
+    .repo-pdf-link {
+      display: inline-block;
+      margin-top: 14px;
+      background: var(--gold);
+      color: #121212;
+      border: none;
+      border-radius: 4px;
+      padding: 7px 18px;
+      font-size: .82rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .repo-pdf-link:hover { background: #e6b020; }
+
+    /* ── Test Bed sub-tabs ───────────────────────────────────── */
+    #testbed-sub-nav {
+      display: flex;
+      gap: 0;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      padding: 0 12px;
+    }
+    .sub-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: .78rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      letter-spacing: .03em;
+      transition: color .15s, border-color .15s;
+    }
+    .sub-tab:hover { color: var(--text); }
+    .sub-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+    /* ── testbed-view flex column to host sub-nav + panel ────── */
+    #testbed-view { flex-direction: column; }
+    #testbed-ai-panel  { display: flex; flex: 1; overflow: hidden; }
+    #testbed-dut-panel { display: none; flex: 1; overflow: hidden; }
+
+    /* ── DUT list (left) ─────────────────────────────────────── */
+    #dut-list-panel {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #dut-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+    .dut-row {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 7px 10px;
+      cursor: pointer;
+      font-size: .8rem;
+    }
+    .dut-row:hover  { border-color: var(--gold); }
+    .dut-row.active { border-color: var(--gold); background: var(--gold-dim); }
+    .dut-pn-badge {
+      display: inline-block;
+      background: var(--maroon);
+      color: #fff;
+      border-radius: 3px;
+      font-size: .65rem;
+      padding: 1px 5px;
+      margin-bottom: 3px;
+    }
+    .dut-sn { color: var(--text); font-weight: 600; font-size: .8rem; }
+    .dut-bid { color: var(--text-dim); font-size: .72rem; }
+    #dut-add-form {
+      display: none;
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+    #dut-add-form.open { display: block; }
+    .dut-form-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+
+    /* ── DUT fingerprint panel (right) ───────────────────────── */
+    #dut-fp-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+    }
+    #dut-fp-header {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #dut-fp-identity { flex: 1; font-size: .85rem; font-weight: 600; color: var(--text); }
+    #dut-fp-identity .sub { font-weight: 400; color: var(--text-dim); font-size: .75rem; }
+    #dut-fp-empty {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-dim);
+      font-size: .9rem;
+    }
+    #dut-fp-table-wrap { flex: 1; overflow: auto; padding: 12px; }
+    #dut-fingerprint-table {
+      border-collapse: collapse;
+      font-size: .72rem;
+      min-width: 1200px;
+    }
+    #dut-fingerprint-table th, #dut-fingerprint-table td {
+      border: 1px solid var(--border);
+      padding: 4px 7px;
+      white-space: nowrap;
+    }
+    #dut-fingerprint-table th { background: var(--surface2); color: var(--text-dim); text-align: center; }
+    .fp-cat-a-header { background: rgba(255,198,39,0.18) !important; color: var(--gold) !important; font-size: .65rem; text-transform: uppercase; }
+    .fp-cat-b-header { background: var(--surface2) !important; color: var(--text-dim) !important; font-size: .65rem; text-transform: uppercase; }
+    .fp-run-label { color: var(--text-dim); font-weight: 600; }
+    .fp-run-warmup td { opacity: 0.55; font-style: italic; }
+    .fp-run-mean td { background: rgba(255,198,39,0.08); font-weight: 600; color: var(--gold); }
+    .fp-run-sigma td { background: var(--surface2); color: var(--text-dim); }
+    .fp-input {
+      width: 74px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text);
+      font-size: .72rem;
+      padding: 2px 4px;
+      text-align: right;
+    }
+    .fp-input:focus { border-color: var(--gold); outline: none; }
+    .fp-save-btn {
+      background: var(--gold);
+      color: #121212;
+      border: none;
+      border-radius: 3px;
+      padding: 2px 8px;
+      font-size: .68rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .fp-save-btn:hover { background: #e6b020; }
+    .fp-sticky-col { position: sticky; left: 0; background: var(--surface); z-index: 1; font-weight: 600; min-width: 110px; }
+
+    /* ── Simulation tab ──────────────────────────────────────── */
+    #sim-view {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #sim-upload-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #sim-dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 48px 64px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    #sim-dropzone:hover, #sim-dropzone.drag-over {
+      border-color: var(--gold);
+      background: var(--gold-dim);
+    }
+    #sim-dropzone .drop-icon { font-size: 3rem; margin-bottom: 12px; }
+    #sim-dropzone p { color: var(--text-dim); font-size: .9rem; }
+    #sim-dropzone .drop-hint { font-size: .75rem; color: var(--text-dim); margin-top: 8px; }
+    #sim-file-input { display: none; }
+
+    #sim-chart-state {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #sim-chart-toolbar {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #sim-chart-toolbar label { font-size: .75rem; color: var(--text-dim); }
+    .sim-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-size: .78rem;
+      padding: 3px 8px;
+    }
+    #sim-chart-toolbar .spacer { flex: 1; }
+    #sim-main-area { display: flex; flex: 1; overflow: hidden; }
+    #sim-canvas-wrap { flex: 1; padding: 16px; display: flex; flex-direction: column; overflow: hidden; }
+    #sim-canvas-wrap canvas { flex: 1; min-height: 0; }
+    #sim-sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #sim-cliff-card {
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+      display: none;
+    }
+    #sim-cliff-card.visible { display: block; }
+    .cliff-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: 4px; }
+    .cliff-value { font-size: 1.4rem; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+    .cliff-desc { font-size: .72rem; color: var(--text-dim); line-height: 1.5; }
+    #sim-save-area { padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    #sim-saved-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .sim-saved-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 7px 10px;
+      margin-bottom: 5px;
+      font-size: .75rem;
+    }
+    .sim-saved-item-name { font-weight: 600; color: var(--text); }
+    .sim-saved-item-cliff { color: var(--gold); font-size: .7rem; }
+    .sim-saved-item-actions { display: flex; gap: 4px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header>
+  <h1>&#9889; TID Prognostics Platform</h1>
+  <div id="db-status">Connecting…</div>
+</header>
+
+<!-- ── Tab Nav ─────────────────────────────────────────────── -->
+<div id="tab-nav">
+  <button class="nav-tab active" id="nav-research">&#128269; Research</button>
+  <button class="nav-tab"        id="nav-testbed" >&#129514; Test Bed</button>
+  <button class="nav-tab"        id="nav-repo"    >&#128218; Repo</button>
+  <button class="nav-tab"        id="nav-sim"     >&#128200; Sim</button>
+</div>
+
+<!-- ── Search bar ─────────────────────────────────────────── -->
+<div id="search-zone">
+  <form id="search-form">
+    <input
+      id="query-input"
+      type="text"
+      placeholder="Search radiation test reports (TID, SEU, SEL, NMOS LDO failures)…"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button id="search-btn" type="submit">Search</button>
+  </form>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- Results panel -->
+  <div id="results-panel">
+    <!-- Empty state -->
+    <div id="empty-state">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#E0E0E0" stroke-width="1.2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <p>Search decades of radiation test reports to establish historical baselines.</p>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <span>Searching &amp; generating answer…</span>
+    </div>
+
+    <!-- Answer -->
+    <div id="answer-card">
+      <h2>AI Answer</h2>
+      <div id="answer-text"></div>
+      <button id="add-note-btn">+ Save as Note</button>
+    </div>
+
+    <!-- Sources -->
+    <div id="sources-section">
+      <h2>Source Chunks</h2>
+      <div id="sources-grid"></div>
+    </div>
+  </div>
+
+  <!-- Notes panel -->
+  <div id="notes-panel">
+    <div id="notes-header">
+      <h2>Notes</h2>
+      <button id="new-note-btn">+ New</button>
+    </div>
+
+    <!-- Notes list -->
+    <div id="notes-list">
+      <div style="color:var(--text-dim);font-size:.8rem;padding:8px;">
+        No notes yet. Use "+ New" or save an answer.
+      </div>
+    </div>
+
+    <!-- Note editor (hidden until a note is opened) -->
+    <div id="note-editor-wrap">
+      <div id="note-editor-toolbar">
+        <button id="note-back-btn" title="Back to list">&#8592;</button>
+        <button class="tab-btn active" id="tab-edit">Edit</button>
+        <button class="tab-btn"       id="tab-preview">Preview</button>
+      </div>
+      <textarea id="note-textarea" placeholder="Write notes in Markdown…"></textarea>
+      <div id="note-preview"></div>
+      <div id="note-save-bar">
+        <button id="note-save-btn">Save</button>
+        <button id="note-delete-btn">Delete</button>
+        <span id="saved-indicator"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Test Bed view ───────────────────────────────────────── -->
+<div id="testbed-view">
+
+  <!-- Sub-tab nav -->
+  <div id="testbed-sub-nav">
+    <button class="sub-tab active" id="sub-ai">&#129514; AI Planning</button>
+    <button class="sub-tab"        id="sub-dut">&#127775; DUT Screening</button>
+  </div>
+
+  <!-- AI Planning panel (existing content) -->
+  <div id="testbed-ai-panel">
+
+    <!-- Inventory panel -->
+    <div id="inventory-panel">
+      <div class="panel-header">
+        <h2>Inventory</h2>
+        <button class="btn-gold" id="add-comp-btn">+ Add</button>
+      </div>
+      <div id="inventory-list">
+        <div style="color:var(--text-dim);font-size:.8rem;padding:8px;">No components yet.</div>
+      </div>
+      <!-- Inline add/edit form -->
+      <div id="comp-form-wrap">
+        <div class="form-grid">
+          <div class="full">
+            <div class="field-label">Part Name *</div>
+            <input class="field-input" id="cf-part-name" placeholder="e.g. LTC1604AIG" />
+          </div>
+          <div>
+            <div class="field-label">Manufacturer</div>
+            <input class="field-input" id="cf-manufacturer" placeholder="Analog Devices" />
+          </div>
+          <div>
+            <div class="field-label">Part Number</div>
+            <input class="field-input" id="cf-part-number" placeholder="LTC1604AIG#PBF" />
+          </div>
+          <div>
+            <div class="field-label">Serial Number</div>
+            <input class="field-input" id="cf-serial" placeholder="SN-00123" />
+          </div>
+          <div>
+            <div class="field-label">Calibration Date</div>
+            <input class="field-input" id="cf-cal-date" type="date" />
+          </div>
+          <div class="full">
+            <div class="field-label">Specs / Description</div>
+            <input class="field-input" id="cf-specs" placeholder="16-bit ADC, 800ksps, 5V supply" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-outline" id="cf-cancel">Cancel</button>
+          <button class="btn-gold"    id="cf-save">Save Component</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Runs list + detail -->
+    <div id="runs-panel" style="display:flex;flex:1;overflow:hidden;">
+      <!-- List -->
+      <div style="display:flex;flex-direction:column;width:260px;flex-shrink:0;border-right:1px solid var(--border);">
+        <div class="panel-header">
+          <h2>Test Runs</h2>
+          <button class="btn-gold" id="new-run-btn">+ New</button>
+        </div>
+        <div id="runs-list"></div>
+      </div>
+
+      <!-- Detail -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <div id="run-empty">Select or create a Test Run</div>
+        <div id="run-detail">
+          <div id="run-title-row">
+            <div>
+              <div id="run-title"></div>
+              <div id="run-date"></div>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn-outline" id="run-export-md">&#11015; MD</button>
+              <button class="btn-outline" id="run-export-pdf">&#11015; PDF</button>
+              <button class="btn-danger"  id="run-delete-btn">Delete</button>
+            </div>
+          </div>
+
+          <!-- Components in run -->
+          <div>
+            <div class="section-label">Components Under Test</div>
+            <div id="run-components-list"></div>
+            <div id="add-comp-to-run-wrap" style="margin-top:8px;">
+              <select id="add-comp-select"><option value="">— Add component —</option></select>
+              <button class="btn-gold" id="add-comp-to-run-btn">Add</button>
+            </div>
+          </div>
+
+          <!-- AI plan -->
+          <div id="ai-plan-wrap">
+            <div id="ai-plan-toolbar">
+              <span>AI Test Parameters</span>
+              <div class="toolbar-actions">
+                <button class="btn-gold" id="generate-plan-btn">&#9889; Generate</button>
+              </div>
+            </div>
+            <div id="ai-plan-content">
+              <span class="plan-placeholder">Click Generate to create an AI-drafted test parameter checklist.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#testbed-ai-panel -->
+
+  <!-- DUT Screening panel -->
+  <div id="testbed-dut-panel">
+
+    <!-- Left: DUT list -->
+    <div id="dut-list-panel">
+      <div class="panel-header">
+        <h2>DUT Units</h2>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-outline" id="dut-export-btn" title="Export CSV">&#11015; CSV</button>
+          <button class="btn-gold"    id="dut-add-btn">+ Add DUT</button>
+        </div>
+      </div>
+      <div id="dut-list">
+        <div style="color:var(--text-dim);font-size:.8rem;padding:8px;">No DUTs yet.</div>
+      </div>
+      <!-- Add DUT form -->
+      <div id="dut-add-form">
+        <div class="form-grid">
+          <div class="full">
+            <div class="field-label">Part Number</div>
+            <select class="field-input" id="dut-part-number">
+              <option>TPS7A53-Q1</option>
+              <option>LT3071</option>
+              <option>TPS7A54-Q1</option>
+              <option>TPS7B7701-Q1</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label">Serial Number</div>
+            <input class="field-input" id="dut-serial" placeholder="SN-001" />
+          </div>
+          <div>
+            <div class="field-label">Silicon Rev</div>
+            <input class="field-input" id="dut-rev" placeholder="Rev A" />
+          </div>
+          <div class="full">
+            <div class="field-label">Board ID</div>
+            <input class="field-input" id="dut-board" placeholder="Board-01" />
+          </div>
+          <div class="full">
+            <div class="field-label">Notes</div>
+            <input class="field-input" id="dut-notes" placeholder="Optional notes…" />
+          </div>
+        </div>
+        <div class="dut-form-actions">
+          <button class="btn-outline" id="dut-form-cancel">Cancel</button>
+          <button class="btn-gold"    id="dut-form-save">Add DUT</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: fingerprint entry -->
+    <div id="dut-fp-panel">
+      <div id="dut-fp-header">
+        <div id="dut-fp-identity">
+          <span>Select a DUT to view fingerprint runs</span>
+        </div>
+      </div>
+      <div id="dut-fp-empty">&#127775; Select a DUT from the list to enter fingerprint measurements.</div>
+      <div id="dut-fp-table-wrap" style="display:none;">
+        <table id="dut-fingerprint-table">
+          <thead id="dut-fp-thead"></thead>
+          <tbody id="dut-fp-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /#testbed-dut-panel -->
+
+</div><!-- /#testbed-view -->
+
+<!-- ── Repo view ────────────────────────────────────────────── -->
+<div id="repo-view">
+
+  <!-- Empty state: index not yet built -->
+  <div id="repo-empty-state">
+    <div class="repo-card">
+      <div class="repo-card-icon">&#128218;</div>
+      <h2>Part Repository</h2>
+      <p>Build a navigable index of all <strong>1,270 PDF reports</strong> organized by category, test type, and part.</p>
+      <p class="repo-card-note">Gemini Flash will extract metadata from each file. This runs once and takes a few minutes.</p>
+      <button class="btn-gold" id="repo-build-btn">&#9889; Build Index</button>
+    </div>
+  </div>
+
+  <!-- Building state: progress bar -->
+  <div id="repo-building-state">
+    <div class="repo-card">
+      <div class="repo-card-icon">&#9881;</div>
+      <h2>Building Index…</h2>
+      <p id="repo-progress-label">Starting…</p>
+      <div class="repo-progress-bar">
+        <div class="repo-progress-fill" id="repo-progress-fill"></div>
+      </div>
+      <p class="repo-card-note">Extracting metadata with Gemini Flash. Do not close the app.</p>
+    </div>
+  </div>
+
+  <!-- Indexed state: tree + content -->
+  <div id="repo-indexed-state">
+
+    <!-- Left: tree panel -->
+    <div id="repo-tree-panel">
+      <div id="repo-tree-header">
+        <input id="repo-search-input" type="text" placeholder="Filter filenames…" autocomplete="off" />
+        <button class="btn-outline" id="repo-rebuild-btn" title="Rebuild index">&#8635; Rebuild</button>
+      </div>
+      <div id="repo-tree-body"></div>
+    </div>
+
+    <!-- Right: content area -->
+    <div id="repo-content">
+      <div id="repo-content-inner">
+        <div id="repo-welcome">
+          <div style="font-size:3rem;margin-bottom:12px;">&#128218;</div>
+          <p>Select a category, test type, or part from the tree.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Simulation view ───────────────────────────────────── -->
+<div id="sim-view">
+
+  <!-- Upload state -->
+  <div id="sim-upload-state">
+    <div id="sim-dropzone">
+      <div class="drop-icon">&#128201;</div>
+      <p>Drop an LTSpice waveform export here</p>
+      <p class="drop-hint">.txt or .csv — tab or comma delimited</p>
+      <p class="drop-hint" style="margin-top:12px;">
+        <button class="btn-gold" id="sim-pick-btn">Browse File</button>
+      </p>
+      <input type="file" id="sim-file-input" accept=".txt,.csv" />
+    </div>
+  </div>
+
+  <!-- Chart state -->
+  <div id="sim-chart-state">
+
+    <!-- Toolbar -->
+    <div id="sim-chart-toolbar">
+      <span id="sim-filename" style="font-weight:600;font-size:.82rem;color:var(--text);"></span>
+      <label>X: <select class="sim-select" id="sim-x-col"></select></label>
+      <label>Y: <select class="sim-select" id="sim-y-col"></select></label>
+      <button class="btn-gold" id="sim-render-btn">Render</button>
+      <button class="btn-outline" id="sim-detect-btn">Detect Cliff</button>
+      <div class="spacer"></div>
+      <button class="btn-outline" id="sim-new-file-btn">&#8617; New File</button>
+    </div>
+
+    <!-- Main area: chart + sidebar -->
+    <div id="sim-main-area">
+
+      <div id="sim-canvas-wrap">
+        <canvas id="sim-chart-canvas"></canvas>
+      </div>
+
+      <div id="sim-sidebar">
+        <!-- Cliff detection result card -->
+        <div id="sim-cliff-card">
+          <div class="cliff-label">Bias Cliff Detected</div>
+          <div class="cliff-value" id="sim-cliff-value">—</div>
+          <div class="cliff-desc">
+            First V<sub>BIAS</sub> where V<sub>OUT</sub> drops below 98% of nominal.
+            This voltage is a proxy for oxide trap density N<sub>ot</sub>.
+          </div>
+          <div style="margin-top:10px;">
+            <div class="field-label">Associate with DUT</div>
+            <select class="field-input" id="sim-cliff-dut-select">
+              <option value="">— None —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Save result -->
+        <div id="sim-save-area">
+          <div class="field-label" style="margin-bottom:4px;">Notes</div>
+          <input class="field-input" id="sim-save-notes" placeholder="Optional notes…" style="margin-bottom:6px;" />
+          <button class="btn-gold" style="width:100%;" id="sim-save-btn">Save Result</button>
+        </div>
+
+        <!-- Saved results list -->
+        <div class="panel-header" style="flex-shrink:0;">
+          <h2>Saved Results</h2>
+        </div>
+        <div id="sim-saved-list"></div>
+      </div>
+
+    </div><!-- /#sim-main-area -->
+  </div><!-- /#sim-chart-state -->
+
+</div><!-- /#sim-view -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let notes     = {};          // { id: markdownString }
+let activeId  = null;        // currently open note id
+let lastQuery = '';
+
+// ── DOM refs ─────────────────────────────────────────────────
+const dbStatus       = document.getElementById('db-status');
+const searchForm     = document.getElementById('search-form');
+const queryInput     = document.getElementById('query-input');
+const searchBtn      = document.getElementById('search-btn');
+const emptyState     = document.getElementById('empty-state');
+const loadingEl      = document.getElementById('loading');
+const answerCard     = document.getElementById('answer-card');
+const answerText     = document.getElementById('answer-text');
+const addNoteBtn     = document.getElementById('add-note-btn');
+const sourcesSection = document.getElementById('sources-section');
+const sourcesGrid    = document.getElementById('sources-grid');
+const notesList      = document.getElementById('notes-list');
+const newNoteBtn     = document.getElementById('new-note-btn');
+const editorWrap     = document.getElementById('note-editor-wrap');
+const noteTextarea   = document.getElementById('note-textarea');
+const notePreview    = document.getElementById('note-preview');
+const noteSaveBtn    = document.getElementById('note-save-btn');
+const noteDeleteBtn  = document.getElementById('note-delete-btn');
+const noteBackBtn    = document.getElementById('note-back-btn');
+const tabEdit        = document.getElementById('tab-edit');
+const tabPreview     = document.getElementById('tab-preview');
+const savedIndicator = document.getElementById('saved-indicator');
+const toast          = document.getElementById('toast');
+
+// ── Utilities ────────────────────────────────────────────────
+function showToast(msg, durationMs = 4000) {
+  toast.textContent = msg;
+  toast.style.display = 'block';
+  setTimeout(() => { toast.style.display = 'none'; }, durationMs);
+}
+
+function highlightTerms(text, query) {
+  const words = query.trim().split(/\s+/).filter(w => w.length > 2);
+  if (!words.length) return escapeHtml(text);
+  const pattern = new RegExp(`(${words.map(escapeRe).join('|')})`, 'gi');
+  return escapeHtml(text).replace(pattern, '<span class="hl">$1</span>');
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+// ── DB status ────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r  = await fetch('/api/status');
+    const d  = await r.json();
+    dbStatus.innerHTML = d.ready
+      ? `<span>${d.chunks.toLocaleString()}</span> chunks indexed`
+      : 'DB not ready — run phase2_vectorize.py';
+  } catch {
+    dbStatus.textContent = 'Backend offline';
+  }
+}
+pollStatus();
+setInterval(pollStatus, 30_000);
+
+// ── Search ───────────────────────────────────────────────────
+searchForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const q = queryInput.value.trim();
+  if (!q) return;
+  lastQuery = q;
+
+  // show loading
+  emptyState.style.display      = 'none';
+  answerCard.style.display      = 'none';
+  addNoteBtn.style.display      = 'none';
+  sourcesSection.style.display  = 'none';
+  loadingEl.style.display       = 'flex';
+  searchBtn.disabled            = true;
+
+  try {
+    const res  = await fetch('/api/query', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ query: q }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+
+    const data = await res.json();
+    renderResults(data, q);
+
+  } catch(err) {
+    showToast('Error: ' + err.message);
+    emptyState.style.display = 'flex';
+  } finally {
+    loadingEl.style.display = 'none';
+    searchBtn.disabled = false;
+  }
+});
+
+function renderResults({ answer, sources }, query) {
+  // Answer
+  answerText.innerHTML  = marked.parse(answer);
+  answerCard.style.display     = 'block';
+  addNoteBtn.style.display     = 'inline-block';
+
+  // Sources
+  sourcesGrid.innerHTML = '';
+  sources.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'source-card';
+    card.innerHTML = `
+      <div class="source-meta">
+        <span class="source-filename" data-file="${escapeHtml(s.filename)}"
+              title="Open PDF">${escapeHtml(s.filename)}</span>
+        <span class="source-page">p. ${s.page_number}</span>
+      </div>
+      <div class="source-snippet">${highlightTerms(s.text.slice(0, 300), query)}</div>
+    `;
+    card.querySelector('.source-filename').addEventListener('click', () => {
+      window.open(`/api/pdf/${encodeURIComponent(s.filename)}`, '_blank');
+    });
+    sourcesGrid.appendChild(card);
+  });
+
+  sourcesSection.style.display = 'block';
+}
+
+// ── Save answer as note ──────────────────────────────────────
+addNoteBtn.addEventListener('click', () => {
+  const id      = uid();
+  const content = `# Query\n${lastQuery}\n\n# Answer\n${answerCard.querySelector('#answer-text').innerText}`;
+  openEditor(id, content);
+});
+
+// ── Notes: load & render list ────────────────────────────────
+async function loadNotes() {
+  try {
+    const r = await fetch('/api/notes');
+    notes   = await r.json();
+    renderNotesList();
+  } catch { /* ignore */ }
+}
+
+function renderNotesList() {
+  if (!Object.keys(notes).length) {
+    notesList.innerHTML = `<div style="color:var(--text-dim);font-size:.8rem;padding:8px;">
+      No notes yet. Use "+ New" or save an answer.</div>`;
+    return;
+  }
+  notesList.innerHTML = '';
+  Object.entries(notes).forEach(([id, content]) => {
+    const lines = content.split('\n').filter(l => l.trim());
+    const title = (lines[0] || 'Untitled').replace(/^#+\s*/, '');
+    const preview = lines[1] || '';
+    const item  = document.createElement('div');
+    item.className = 'note-item';
+    item.innerHTML = `
+      <div class="note-item-title">${escapeHtml(title)}</div>
+      <div class="note-item-preview">${escapeHtml(preview)}</div>
+    `;
+    item.addEventListener('click', () => openEditor(id, content));
+    notesList.appendChild(item);
+  });
+}
+loadNotes();
+
+// ── Note editor ──────────────────────────────────────────────
+function openEditor(id, content = '') {
+  activeId = id;
+  noteTextarea.value = content;
+  showEditTab();
+  notesList.style.display    = 'none';
+  editorWrap.classList.add('open');
+  savedIndicator.textContent = '';
+  noteTextarea.focus();
+}
+
+function closeEditor() {
+  editorWrap.classList.remove('open');
+  notesList.style.display = '';
+  activeId = null;
+}
+
+function showEditTab() {
+  noteTextarea.style.display = 'block';
+  notePreview.style.display  = 'none';
+  tabEdit.classList.add('active');
+  tabPreview.classList.remove('active');
+}
+function showPreviewTab() {
+  notePreview.innerHTML      = marked.parse(noteTextarea.value);
+  noteTextarea.style.display = 'none';
+  notePreview.style.display  = 'block';
+  tabEdit.classList.remove('active');
+  tabPreview.classList.add('active');
+}
+
+tabEdit.addEventListener('click', showEditTab);
+tabPreview.addEventListener('click', showPreviewTab);
+noteBackBtn.addEventListener('click', closeEditor);
+newNoteBtn.addEventListener('click', () => openEditor(uid()));
+
+noteSaveBtn.addEventListener('click', async () => {
+  if (!activeId) return;
+  const content = noteTextarea.value;
+  notes[activeId] = content;
+  await fetch('/api/notes', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ id: activeId, content }),
+  });
+  savedIndicator.textContent = '✓ Saved';
+  savedIndicator.className   = 'saved-flash';
+  setTimeout(() => { savedIndicator.textContent = ''; }, 2000);
+  renderNotesList();
+});
+
+noteDeleteBtn.addEventListener('click', async () => {
+  if (!activeId || !confirm('Delete this note?')) return;
+  delete notes[activeId];
+  await fetch('/api/notes', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ id: activeId, content: '' }),
+  });
+  closeEditor();
+  renderNotesList();
+});
+
+// ── Tab navigation ───────────────────────────────────────────
+const navResearch  = document.getElementById('nav-research');
+const navTestbed   = document.getElementById('nav-testbed');
+const searchZone   = document.getElementById('search-zone');
+const mainEl       = document.getElementById('main');
+const testbedView  = document.getElementById('testbed-view');
+
+navResearch.addEventListener('click', () => {
+  navResearch.classList.add('active');
+  navTestbed.classList.remove('active');
+  searchZone.style.display  = '';
+  mainEl.style.display      = '';
+  testbedView.style.display = 'none';
+});
+navTestbed.addEventListener('click', () => {
+  navTestbed.classList.add('active');
+  navResearch.classList.remove('active');
+  searchZone.style.display  = 'none';
+  mainEl.style.display      = 'none';
+  testbedView.style.display = 'flex';
+  loadInventory();
+  loadRuns();
+});
+
+// ── Phase 4 State ────────────────────────────────────────────
+let inventory   = [];
+let runs        = [];
+let activeRunId = null;
+let editingCompId = null;
+
+// ── DOM refs (Phase 4) ───────────────────────────────────────
+const addCompBtn       = document.getElementById('add-comp-btn');
+const compFormWrap     = document.getElementById('comp-form-wrap');
+const cfPartName       = document.getElementById('cf-part-name');
+const cfManufacturer   = document.getElementById('cf-manufacturer');
+const cfPartNumber     = document.getElementById('cf-part-number');
+const cfSerial         = document.getElementById('cf-serial');
+const cfCalDate        = document.getElementById('cf-cal-date');
+const cfSpecs          = document.getElementById('cf-specs');
+const cfCancel         = document.getElementById('cf-cancel');
+const cfSave           = document.getElementById('cf-save');
+const inventoryList    = document.getElementById('inventory-list');
+const newRunBtn        = document.getElementById('new-run-btn');
+const runsList         = document.getElementById('runs-list');
+const runEmpty         = document.getElementById('run-empty');
+const runDetail        = document.getElementById('run-detail');
+const runTitle         = document.getElementById('run-title');
+const runDate          = document.getElementById('run-date');
+const runCompsList     = document.getElementById('run-components-list');
+const addCompSelect    = document.getElementById('add-comp-select');
+const addCompToRunBtn  = document.getElementById('add-comp-to-run-btn');
+const generatePlanBtn  = document.getElementById('generate-plan-btn');
+const aiPlanContent    = document.getElementById('ai-plan-content');
+const runExportMd      = document.getElementById('run-export-md');
+const runExportPdf     = document.getElementById('run-export-pdf');
+const runDeleteBtn     = document.getElementById('run-delete-btn');
+
+// ── Inventory ────────────────────────────────────────────────
+async function loadInventory() {
+  const r = await fetch('/api/components');
+  inventory = await r.json();
+  renderInventory();
+  populateCompSelect();
+}
+
+function renderInventory() {
+  if (!inventory.length) {
+    inventoryList.innerHTML = '<div style="color:var(--text-dim);font-size:.8rem;padding:8px;">No components yet.</div>';
+    return;
+  }
+  inventoryList.innerHTML = '';
+  inventory.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'inv-row';
+    row.innerHTML = `
+      <div class="inv-name">${escapeHtml(c.part_name)}</div>
+      <div class="inv-pn">${escapeHtml(c.part_number || '')}</div>
+      <div class="inv-actions">
+        <button class="btn-outline" data-edit="${c.id}">Edit</button>
+        <button class="btn-danger"  data-del="${c.id}">✕</button>
+      </div>`;
+    row.querySelector('[data-edit]').addEventListener('click', () => openCompForm(c));
+    row.querySelector('[data-del]').addEventListener('click', async () => {
+      if (!confirm(`Delete "${c.part_name}"?`)) return;
+      await fetch(`/api/components/${c.id}`, { method: 'DELETE' });
+      loadInventory();
+    });
+    inventoryList.appendChild(row);
+  });
+}
+
+function populateCompSelect() {
+  addCompSelect.innerHTML = '<option value="">— Add component —</option>';
+  inventory.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.part_name} (${c.part_number || c.manufacturer || 'no P/N'})`;
+    addCompSelect.appendChild(opt);
+  });
+}
+
+addCompBtn.addEventListener('click', () => openCompForm(null));
+
+function openCompForm(comp) {
+  editingCompId = comp ? comp.id : null;
+  cfPartName.value     = comp ? comp.part_name        : '';
+  cfManufacturer.value = comp ? comp.manufacturer     : '';
+  cfPartNumber.value   = comp ? comp.part_number      : '';
+  cfSerial.value       = comp ? comp.serial_number    : '';
+  cfCalDate.value      = comp ? comp.calibration_date : '';
+  cfSpecs.value        = comp ? comp.specs            : '';
+  compFormWrap.classList.add('open');
+  cfPartName.focus();
+}
+
+cfCancel.addEventListener('click', () => compFormWrap.classList.remove('open'));
+
+cfSave.addEventListener('click', async () => {
+  const name = cfPartName.value.trim();
+  if (!name) { showToast('Part Name is required.'); return; }
+  const payload = {
+    part_name:        name,
+    manufacturer:     cfManufacturer.value.trim(),
+    part_number:      cfPartNumber.value.trim(),
+    serial_number:    cfSerial.value.trim(),
+    calibration_date: cfCalDate.value,
+    specs:            cfSpecs.value.trim(),
+  };
+  if (editingCompId) {
+    await fetch(`/api/components/${editingCompId}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+  } else {
+    await fetch('/api/components', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+  }
+  compFormWrap.classList.remove('open');
+  loadInventory();
+});
+
+// ── Test Runs ─────────────────────────────────────────────────
+async function loadRuns() {
+  const r = await fetch('/api/test-runs');
+  runs = await r.json();
+  renderRunsList();
+}
+
+function renderRunsList() {
+  runsList.innerHTML = '';
+  if (!runs.length) {
+    runsList.innerHTML = '<div style="color:var(--text-dim);font-size:.8rem;padding:10px;">No test runs yet.</div>';
+    return;
+  }
+  runs.forEach(run => {
+    const item = document.createElement('div');
+    item.className = 'run-item' + (run.id === activeRunId ? ' active' : '');
+    item.innerHTML = `
+      <div class="run-item-name">${escapeHtml(run.name)}</div>
+      <div class="run-item-meta">${run.component_count} component(s) · ${run.created_at.slice(0,10)}</div>`;
+    item.addEventListener('click', () => selectRun(run.id));
+    runsList.appendChild(item);
+  });
+}
+
+newRunBtn.addEventListener('click', async () => {
+  const name = prompt('Test Run name:');
+  if (!name || !name.trim()) return;
+  const notes = prompt('Notes (optional):') || '';
+  const r = await fetch('/api/test-runs', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name: name.trim(), notes }),
+  });
+  const { id } = await r.json();
+  await loadRuns();
+  selectRun(id);
+});
+
+async function selectRun(rid) {
+  activeRunId = rid;
+  renderRunsList();
+  const run = await fetch(`/api/test-runs/${rid}`).then(r => r.json());
+  runEmpty.style.display  = 'none';
+  runDetail.classList.add('visible');
+  runTitle.textContent = run.name;
+  runDate.textContent  = `Created: ${run.created_at.slice(0,16).replace('T',' ')}`;
+
+  // Components chips
+  runCompsList.innerHTML = '';
+  run.components.forEach(c => {
+    const chip = document.createElement('div');
+    chip.className = 'run-comp-chip';
+    chip.innerHTML = `${escapeHtml(c.part_name)} <span class="rm" data-cid="${c.id}" title="Remove">✕</span>`;
+    chip.querySelector('.rm').addEventListener('click', async () => {
+      await fetch(`/api/test-runs/${rid}/components/${c.id}`, { method: 'DELETE' });
+      selectRun(rid);
+    });
+    runCompsList.appendChild(chip);
+  });
+
+  // AI plan
+  if (run.ai_plan) {
+    aiPlanContent.innerHTML = marked.parse(run.ai_plan);
+  } else {
+    aiPlanContent.innerHTML = '<span class="plan-placeholder">Click Generate to create an AI-drafted test parameter checklist.</span>';
+  }
+}
+
+addCompToRunBtn.addEventListener('click', async () => {
+  const cid = parseInt(addCompSelect.value);
+  if (!cid || !activeRunId) return;
+  await fetch(`/api/test-runs/${activeRunId}/components`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ component_id: cid }),
+  });
+  selectRun(activeRunId);
+  loadRuns();
+});
+
+generatePlanBtn.addEventListener('click', async () => {
+  if (!activeRunId) return;
+  generatePlanBtn.disabled  = true;
+  generatePlanBtn.textContent = '⚡ Generating…';
+  aiPlanContent.innerHTML   = '<div style="color:var(--text-dim)">Querying RAG database and generating plan…</div>';
+  try {
+    const r = await fetch(`/api/test-runs/${activeRunId}/generate`, { method: 'POST' });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({ detail: r.statusText }));
+      throw new Error(e.detail);
+    }
+    const { plan } = await r.json();
+    aiPlanContent.innerHTML = marked.parse(plan);
+  } catch(err) {
+    showToast('Generate error: ' + err.message);
+    aiPlanContent.innerHTML = '<span class="plan-placeholder">Generation failed.</span>';
+  } finally {
+    generatePlanBtn.disabled = false;
+    generatePlanBtn.textContent = '⚡ Generate';
+  }
+});
+
+runExportMd.addEventListener('click', () => {
+  if (activeRunId) window.location = `/api/test-runs/${activeRunId}/export/md`;
+});
+runExportPdf.addEventListener('click', () => {
+  if (activeRunId) window.location = `/api/test-runs/${activeRunId}/export/pdf`;
+});
+runDeleteBtn.addEventListener('click', async () => {
+  if (!activeRunId || !confirm('Delete this test run?')) return;
+  await fetch(`/api/test-runs/${activeRunId}`, { method: 'DELETE' });
+  activeRunId = null;
+  runDetail.classList.remove('visible');
+  runEmpty.style.display = '';
+  loadRuns();
+});
+
+// ── Repo Tab ──────────────────────────────────────────────────
+
+// DOM refs
+const navRepo          = document.getElementById('nav-repo');
+const repoView         = document.getElementById('repo-view');
+const repoEmptyState   = document.getElementById('repo-empty-state');
+const repoBuildingState= document.getElementById('repo-building-state');
+const repoIndexedState = document.getElementById('repo-indexed-state');
+const repoBuildBtn     = document.getElementById('repo-build-btn');
+const repoRebuildBtn   = document.getElementById('repo-rebuild-btn');
+const repoProgressFill = document.getElementById('repo-progress-fill');
+const repoProgressLabel= document.getElementById('repo-progress-label');
+const repoTreeBody     = document.getElementById('repo-tree-body');
+const repoContent      = document.getElementById('repo-content');
+const repoSearchInput  = document.getElementById('repo-search-input');
+
+// State
+let repoTree        = null;
+let repoIndexed     = false;
+let repoBuildPoll   = null;
+let repoActiveFile  = null;
+let repoSearchTerm  = '';
+
+// Category display order
+const CAT_ORDER  = ['SEE', 'TID', 'Proton', 'Other'];
+const SEE_TYPES  = ['SEU', 'SEL', 'SEFI', 'SET'];
+
+// Tab switching
+navRepo.addEventListener('click', () => {
+  navResearch.classList.remove('active');
+  navTestbed.classList.remove('active');
+  navRepo.classList.add('active');
+  searchZone.style.display  = 'none';
+  mainEl.style.display      = 'none';
+  testbedView.style.display = 'none';
+  repoView.style.display    = 'flex';
+  initRepoView();
+});
+
+// Patch existing tab listeners to hide repo view
+navResearch.addEventListener('click', () => {
+  repoView.style.display = 'none';
+  navRepo.classList.remove('active');
+}, true);
+navTestbed.addEventListener('click', () => {
+  repoView.style.display = 'none';
+  navRepo.classList.remove('active');
+}, true);
+
+async function initRepoView() {
+  // Check if a build is running first
+  try {
+    const s = await fetch('/api/repo/build/status').then(r => r.json());
+    if (s.running) {
+      showRepoBuildingState(s);
+      startBuildPolling();
+      return;
+    }
+  } catch { /* ignore */ }
+
+  // Check if already indexed
+  try {
+    const t = await fetch('/api/repo/tree').then(r => r.json());
+    if (t.indexed) {
+      repoTree    = t.tree;
+      repoIndexed = true;
+      showRepoIndexedState();
+      return;
+    }
+  } catch { /* ignore */ }
+
+  showRepoEmptyState();
+}
+
+function showRepoEmptyState() {
+  repoEmptyState.style.display    = 'flex';
+  repoBuildingState.style.display = 'none';
+  repoIndexedState.style.display  = 'none';
+}
+
+function showRepoBuildingState(s) {
+  repoEmptyState.style.display    = 'none';
+  repoBuildingState.style.display = 'flex';
+  repoIndexedState.style.display  = 'none';
+  updateProgressUI(s);
+}
+
+function showRepoIndexedState() {
+  repoEmptyState.style.display    = 'none';
+  repoBuildingState.style.display = 'none';
+  repoIndexedState.style.display  = 'flex';
+  renderRepoTree(repoTree, repoSearchTerm);
+}
+
+function updateProgressUI(s) {
+  const pct = s.total > 0 ? Math.round((s.done / s.total) * 100) : 0;
+  repoProgressFill.style.width = pct + '%';
+  repoProgressLabel.textContent =
+    s.total > 0 ? `${s.done} / ${s.total} files — ${pct}%` : 'Starting…';
+}
+
+async function startRepoBuild(force = false) {
+  try {
+    const r = await fetch('/api/repo/build' + (force ? '?force=true' : ''), { method: 'POST' });
+    if (r.status === 409) { showToast('Build already running.'); return; }
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({ detail: r.statusText }));
+      showToast('Build error: ' + e.detail);
+      return;
+    }
+    showRepoBuildingState({ running: true, done: 0, total: 0, errors: 0 });
+    startBuildPolling();
+  } catch(err) {
+    showToast('Build error: ' + err.message);
+  }
+}
+
+function startBuildPolling() {
+  if (repoBuildPoll) clearInterval(repoBuildPoll);
+  repoBuildPoll = setInterval(async () => {
+    try {
+      const s = await fetch('/api/repo/build/status').then(r => r.json());
+      updateProgressUI(s);
+      if (!s.running) {
+        clearInterval(repoBuildPoll);
+        repoBuildPoll = null;
+        // Fetch tree and switch to indexed state
+        const t = await fetch('/api/repo/tree').then(r => r.json());
+        if (t.indexed) {
+          repoTree    = t.tree;
+          repoIndexed = true;
+          showRepoIndexedState();
+        } else {
+          showToast('Build finished but no entries found.');
+          showRepoEmptyState();
+        }
+      }
+    } catch { /* ignore network hiccup */ }
+  }, 2000);
+}
+
+repoBuildBtn.addEventListener('click', startRepoBuild);
+repoRebuildBtn.addEventListener('click', () => {
+  if (!confirm('Rebuild the index? This will re-process all files.')) return;
+  repoActiveFile = null;
+  startRepoBuild(true);
+  showRepoBuildingState({ running: true, done: 0, total: 0, errors: 0 });
+});
+
+repoSearchInput.addEventListener('input', () => {
+  repoSearchTerm = repoSearchInput.value.trim().toLowerCase();
+  if (repoTree) renderRepoTree(repoTree, repoSearchTerm);
+});
+
+// ── Tree rendering ────────────────────────────────────────────
+
+function renderRepoTree(tree, filterTerm) {
+  repoTreeBody.innerHTML = '';
+  const filter = filterTerm.toLowerCase();
+
+  for (const cat of CAT_ORDER) {
+    const subtypes = tree[cat];
+    if (!subtypes) continue;
+
+    // Determine subtypes order
+    let typeKeys = Object.keys(subtypes);
+    if (cat === 'SEE') {
+      typeKeys = SEE_TYPES.filter(t => typeKeys.includes(t))
+                   .concat(typeKeys.filter(t => !SEE_TYPES.includes(t)));
+    } else {
+      typeKeys.sort();
+    }
+
+    // Count total files in category (for label)
+    let catTotal = 0;
+    for (const tk of typeKeys)
+      for (const pk of Object.keys(subtypes[tk] || {}))
+        catTotal += (subtypes[tk][pk] || []).length;
+
+    // Check if any match filter
+    if (filter) {
+      const hasMatch = typeKeys.some(tk =>
+        Object.keys(subtypes[tk] || {}).some(pk =>
+          (subtypes[tk][pk] || []).some(f => f.toLowerCase().includes(filter))
+        )
+      );
+      if (!hasMatch) continue;
+    }
+
+    // Category row
+    const catWrap   = document.createElement('div');
+    const catToggle = document.createElement('span');
+    catToggle.className = 'tree-toggle' + (filter ? ' open' : '');
+    catToggle.textContent = '▶';
+    const catRow = document.createElement('div');
+    catRow.className = 'tree-cat-header';
+    catRow.append(catToggle, `${cat} (${catTotal})`);
+
+    const catChildren = document.createElement('div');
+    catChildren.className = 'tree-children' + (filter ? ' open' : '');
+
+    catRow.addEventListener('click', () => {
+      const open = catChildren.classList.toggle('open');
+      catToggle.classList.toggle('open', open);
+      if (open) showRepoCategoryOverview(cat, subtypes);
+    });
+
+    catWrap.append(catRow, catChildren);
+    repoTreeBody.appendChild(catWrap);
+
+    if (!filter) {
+      // Show category overview on category click when collapsed
+      catRow.addEventListener('click', () => {});
+    }
+
+    // Type rows
+    for (const ttype of typeKeys) {
+      const ptypes = subtypes[ttype] || {};
+      let ptypeKeys = Object.keys(ptypes).sort();
+
+      let typeTotal = ptypeKeys.reduce((s, pk) => s + (ptypes[pk] || []).length, 0);
+
+      if (filter) {
+        ptypeKeys = ptypeKeys.filter(pk =>
+          (ptypes[pk] || []).some(f => f.toLowerCase().includes(filter))
+        );
+        if (!ptypeKeys.length) continue;
+      }
+
+      const typeWrap   = document.createElement('div');
+      const typeToggle = document.createElement('span');
+      typeToggle.className = 'tree-toggle' + (filter ? ' open' : '');
+      typeToggle.textContent = '▶';
+      const typeRow = document.createElement('div');
+      typeRow.className = 'tree-type-header';
+      typeRow.append(typeToggle, `${ttype} (${typeTotal})`);
+
+      const typeChildren = document.createElement('div');
+      typeChildren.className = 'tree-children' + (filter ? ' open' : '');
+
+      typeRow.addEventListener('click', () => {
+        const open = typeChildren.classList.toggle('open');
+        typeToggle.classList.toggle('open', open);
+        if (!catChildren.classList.contains('open')) {
+          catChildren.classList.add('open');
+          catToggle.classList.add('open');
+        }
+      });
+
+      typeWrap.append(typeRow, typeChildren);
+      catChildren.appendChild(typeWrap);
+
+      // Part-type rows
+      for (const ptype of ptypeKeys) {
+        let files = ptypes[ptype] || [];
+        if (filter) files = files.filter(f => f.toLowerCase().includes(filter));
+        if (!files.length) continue;
+
+        const ptWrap   = document.createElement('div');
+        const ptToggle = document.createElement('span');
+        ptToggle.className = 'tree-toggle' + (filter ? ' open' : '');
+        ptToggle.textContent = '▶';
+        const ptRow = document.createElement('div');
+        ptRow.className = 'tree-ptype-header';
+        ptRow.append(ptToggle, `${ptype} (${files.length})`);
+
+        const ptChildren = document.createElement('div');
+        ptChildren.className = 'tree-children' + (filter ? ' open' : '');
+
+        ptRow.addEventListener('click', () => {
+          const open = ptChildren.classList.toggle('open');
+          ptToggle.classList.toggle('open', open);
+          if (!typeChildren.classList.contains('open')) {
+            typeChildren.classList.add('open');
+            typeToggle.classList.add('open');
+          }
+          if (!catChildren.classList.contains('open')) {
+            catChildren.classList.add('open');
+            catToggle.classList.add('open');
+          }
+        });
+
+        ptWrap.append(ptRow, ptChildren);
+        typeChildren.appendChild(ptWrap);
+
+        // File items
+        for (const fname of files.sort()) {
+          const item = document.createElement('div');
+          item.className = 'tree-part-item' + (fname === repoActiveFile ? ' active' : '');
+          item.textContent = fname;
+          item.title = fname;
+          item.addEventListener('click', () => {
+            document.querySelectorAll('.tree-part-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+            repoActiveFile = fname;
+            loadRepoPartDetail(fname);
+          });
+          ptChildren.appendChild(item);
+        }
+      }
+    }
+  }
+}
+
+function showRepoCategoryOverview(cat, subtypes) {
+  const typeKeys = Object.keys(subtypes).sort();
+  let html = `<div class="repo-overview-title">&#128218; ${cat}</div>
+    <div class="repo-overview-grid">`;
+  for (const ttype of typeKeys) {
+    let count = 0;
+    for (const pk of Object.keys(subtypes[ttype] || {}))
+      count += (subtypes[ttype][pk] || []).length;
+    html += `<div class="repo-overview-card">
+      <div class="repo-overview-card-label">${ttype}</div>
+      <div class="repo-overview-card-count">${count}</div>
+    </div>`;
+  }
+  html += '</div>';
+  repoContent.innerHTML = `<div id="repo-content-inner">${html}</div>`;
+}
+
+async function loadRepoPartDetail(filename) {
+  try {
+    const d = await fetch(`/api/repo/part/${encodeURIComponent(filename)}`).then(r => r.json());
+    renderRepoPartDetail(d);
+  } catch(err) {
+    showToast('Could not load detail: ' + err.message);
+  }
+}
+
+function renderRepoPartDetail(d) {
+  let pnBadges = '';
+  try {
+    const pns = JSON.parse(d.part_numbers || '[]');
+    pnBadges = pns.map(pn => `<span class="repo-badge repo-badge-pn">${escapeHtml(pn)}</span>`).join('');
+  } catch { /* ignore */ }
+
+  repoContent.innerHTML = `
+    <div id="repo-content-inner">
+      <div class="repo-detail-section">
+        <div class="repo-detail-filename">${escapeHtml(d.filename)}</div>
+        <div class="repo-badges">
+          <span class="repo-badge repo-badge-cat">${escapeHtml(d.category)}</span>
+          <span class="repo-badge repo-badge-type">${escapeHtml(d.test_type)}</span>
+          <span class="repo-badge repo-badge-part">${escapeHtml(d.part_type)}</span>
+          ${pnBadges}
+        </div>
+        ${d.summary ? `<div class="repo-detail-summary">${escapeHtml(d.summary)}</div>` : ''}
+        <div class="repo-meta-grid">
+          <div class="repo-meta-item">
+            <div class="repo-meta-label">Manufacturer</div>
+            <div class="repo-meta-value">${escapeHtml(d.manufacturer || '—')}</div>
+          </div>
+          <div class="repo-meta-item">
+            <div class="repo-meta-label">Indexed</div>
+            <div class="repo-meta-value">${escapeHtml((d.indexed_at || '').slice(0, 16).replace('T', ' '))}</div>
+          </div>
+        </div>
+        <a class="repo-pdf-link" href="/api/pdf/${encodeURIComponent(d.filename)}" target="_blank">
+          &#128196; Open PDF
+        </a>
+      </div>
+    </div>`;
+}
+
+// ── Sim Tab ───────────────────────────────────────────────────
+
+const navSim        = document.getElementById('nav-sim');
+const simView       = document.getElementById('sim-view');
+const simUploadState  = document.getElementById('sim-upload-state');
+const simChartState   = document.getElementById('sim-chart-state');
+const simDropzone     = document.getElementById('sim-dropzone');
+const simFileInput    = document.getElementById('sim-file-input');
+const simPickBtn      = document.getElementById('sim-pick-btn');
+const simFilename     = document.getElementById('sim-filename');
+const simXCol         = document.getElementById('sim-x-col');
+const simYCol         = document.getElementById('sim-y-col');
+const simRenderBtn    = document.getElementById('sim-render-btn');
+const simDetectBtn    = document.getElementById('sim-detect-btn');
+const simNewFileBtn   = document.getElementById('sim-new-file-btn');
+const simCliffCard    = document.getElementById('sim-cliff-card');
+const simCliffValue   = document.getElementById('sim-cliff-value');
+const simCliffDutSel  = document.getElementById('sim-cliff-dut-select');
+const simSaveNotes    = document.getElementById('sim-save-notes');
+const simSaveBtn      = document.getElementById('sim-save-btn');
+const simSavedList    = document.getElementById('sim-saved-list');
+
+let simParsed    = null;   // { filename, headers, rows }
+let simChart     = null;
+let simCliffV    = null;
+
+// Sim tab click
+navSim.addEventListener('click', () => {
+  navResearch.classList.remove('active');
+  navTestbed.classList.remove('active');
+  navRepo.classList.remove('active');
+  navSim.classList.add('active');
+  searchZone.style.display  = 'none';
+  mainEl.style.display      = 'none';
+  testbedView.style.display = 'none';
+  repoView.style.display    = 'none';
+  simView.style.display     = 'flex';
+  initSimView();
+});
+
+// Patch other tabs to hide simView
+navResearch.addEventListener('click', () => { simView.style.display = 'none'; navSim.classList.remove('active'); }, true);
+navTestbed.addEventListener('click',  () => { simView.style.display = 'none'; navSim.classList.remove('active'); }, true);
+navRepo.addEventListener('click',     () => { simView.style.display = 'none'; navSim.classList.remove('active'); }, true);
+
+function initSimView() {
+  loadSimSavedList();
+  populateSimDutSelect();
+}
+
+// ── File handling ─────────────────────────────────────────────
+simPickBtn.addEventListener('click', () => simFileInput.click());
+simFileInput.addEventListener('change', () => {
+  if (simFileInput.files[0]) uploadSimFile(simFileInput.files[0]);
+});
+
+simDropzone.addEventListener('dragover', e => { e.preventDefault(); simDropzone.classList.add('drag-over'); });
+simDropzone.addEventListener('dragleave', ()  => simDropzone.classList.remove('drag-over'));
+simDropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  simDropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) uploadSimFile(e.dataTransfer.files[0]);
+});
+
+async function uploadSimFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/sim/parse', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    simParsed = await r.json();
+    simFilename.textContent = simParsed.filename;
+    populateSimColSelectors(simParsed.headers);
+    simUploadState.style.display  = 'none';
+    simChartState.style.display   = 'flex';
+    renderSimChart();
+  } catch(err) {
+    showToast('Parse error: ' + err.message);
+  }
+}
+
+function populateSimColSelectors(headers) {
+  simXCol.innerHTML = headers.map((h, i) => `<option value="${i}">${escapeHtml(h)}</option>`).join('');
+  simYCol.innerHTML = headers.map((h, i) => `<option value="${i}">${escapeHtml(h)}</option>`).join('');
+  if (headers.length > 1) simYCol.value = '1';
+}
+
+simRenderBtn.addEventListener('click', renderSimChart);
+
+function renderSimChart() {
+  if (!simParsed) return;
+  const xi = parseInt(simXCol.value);
+  const yi = parseInt(simYCol.value);
+  const xData = simParsed.rows.map(r => r[xi]);
+  const yData = simParsed.rows.map(r => r[yi]);
+  const xLabel = simParsed.headers[xi] || 'X';
+  const yLabel = simParsed.headers[yi] || 'Y';
+
+  const ctx = document.getElementById('sim-chart-canvas').getContext('2d');
+  if (simChart) simChart.destroy();
+  simChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: xData,
+      datasets: [{
+        label: yLabel,
+        data: yData,
+        borderColor: '#FFC627',
+        borderWidth: 1.5,
+        pointRadius: xData.length > 500 ? 0 : 2,
+        fill: false,
+        tension: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#E0E0E0', font: { size: 11 } } } },
+      scales: {
+        x: { title: { display: true, text: xLabel, color: '#999' }, ticks: { color: '#999', maxTicksLimit: 12 }, grid: { color: '#333' } },
+        y: { title: { display: true, text: yLabel, color: '#999' }, ticks: { color: '#999' }, grid: { color: '#333' } },
+      },
+    },
+  });
+  simCliffV = null;
+  simCliffCard.classList.remove('visible');
+}
+
+// ── Bias Cliff detection ──────────────────────────────────────
+function detectBiasCliff(xData, yData) {
+  const nominal   = Math.max(...yData);
+  const threshold = nominal * 0.98;
+  for (let i = 0; i < yData.length; i++) {
+    if (yData[i] < threshold) return xData[i];
+  }
+  return null;
+}
+
+simDetectBtn.addEventListener('click', () => {
+  if (!simParsed || !simChart) return;
+  const xi = parseInt(simXCol.value);
+  const yi = parseInt(simYCol.value);
+  const xData = simParsed.rows.map(r => r[xi]);
+  const yData = simParsed.rows.map(r => r[yi]);
+  const cliff = detectBiasCliff(xData, yData);
+  simCliffV = cliff;
+  if (cliff !== null) {
+    simCliffValue.textContent = cliff.toFixed(4) + ' V';
+    simCliffCard.classList.add('visible');
+    // Add annotation line
+    simChart.data.datasets = simChart.data.datasets.filter(ds => ds.label !== 'Bias Cliff');
+    simChart.data.datasets.push({
+      label: 'Bias Cliff',
+      data: xData.map(x => x === cliff ? Math.max(...yData) * 0.98 : null),
+      borderColor: '#c0392b',
+      borderWidth: 2,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      fill: false,
+      spanGaps: false,
+    });
+    simChart.update();
+    showToast(`Bias Cliff detected at ${cliff.toFixed(4)} V`);
+  } else {
+    simCliffValue.textContent = 'Not detected';
+    simCliffCard.classList.add('visible');
+    showToast('No bias cliff detected in this waveform.');
+  }
+});
+
+simNewFileBtn.addEventListener('click', () => {
+  simParsed = null;
+  simChart?.destroy();
+  simChart = null;
+  simCliffV = null;
+  simFileInput.value = '';
+  simChartState.style.display  = 'none';
+  simUploadState.style.display = 'flex';
+  simCliffCard.classList.remove('visible');
+});
+
+// ── Save sim result ───────────────────────────────────────────
+simSaveBtn.addEventListener('click', async () => {
+  if (!simParsed) return;
+  const xi = parseInt(simXCol.value);
+  const yi = parseInt(simYCol.value);
+  const payload = {
+    dut_id:       simCliffDutSel.value ? parseInt(simCliffDutSel.value) : null,
+    filename:     simParsed.filename,
+    x_col:        simParsed.headers[xi] || '',
+    y_col:        simParsed.headers[yi] || '',
+    bias_cliff_v: simCliffV,
+    notes:        simSaveNotes.value.trim(),
+    raw_data:     JSON.stringify({ headers: simParsed.headers, rows: simParsed.rows }),
+  };
+  try {
+    const r = await fetch('/api/sim/results', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    showToast('Sim result saved.');
+    simSaveNotes.value = '';
+    loadSimSavedList();
+  } catch(err) {
+    showToast('Save error: ' + err.message);
+  }
+});
+
+async function loadSimSavedList() {
+  try {
+    const items = await fetch('/api/sim/results').then(r => r.json());
+    simSavedList.innerHTML = '';
+    if (!items.length) {
+      simSavedList.innerHTML = '<div style="color:var(--text-dim);font-size:.75rem;padding:8px;">No saved results.</div>';
+      return;
+    }
+    items.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'sim-saved-item';
+      el.innerHTML = `
+        <div class="sim-saved-item-name">${escapeHtml(item.filename)}</div>
+        <div class="sim-saved-item-cliff">${item.bias_cliff_v != null ? 'Cliff: ' + item.bias_cliff_v.toFixed(4) + ' V' : 'No cliff'}</div>
+        ${item.notes ? `<div style="color:var(--text-dim);font-size:.7rem;">${escapeHtml(item.notes)}</div>` : ''}
+        <div class="sim-saved-item-actions">
+          <button class="btn-outline" data-load="${item.id}">Load</button>
+          <button class="btn-danger"  data-del="${item.id}">✕</button>
+        </div>`;
+      el.querySelector('[data-del]').addEventListener('click', async () => {
+        if (!confirm('Delete this result?')) return;
+        await fetch(`/api/sim/results/${item.id}`, { method: 'DELETE' });
+        loadSimSavedList();
+      });
+      el.querySelector('[data-load]').addEventListener('click', async () => {
+        const full = await fetch(`/api/sim/results/${item.id}`).then(r => r.json());
+        try {
+          const raw = JSON.parse(full.raw_data);
+          simParsed = { filename: full.filename, headers: raw.headers, rows: raw.rows };
+          simFilename.textContent = full.filename;
+          populateSimColSelectors(raw.headers);
+          const xi = raw.headers.indexOf(full.x_col);
+          const yi = raw.headers.indexOf(full.y_col);
+          if (xi >= 0) simXCol.value = xi;
+          if (yi >= 0) simYCol.value = yi;
+          simUploadState.style.display  = 'none';
+          simChartState.style.display   = 'flex';
+          renderSimChart();
+          if (full.bias_cliff_v != null) {
+            simCliffV = full.bias_cliff_v;
+            simCliffValue.textContent = full.bias_cliff_v.toFixed(4) + ' V';
+            simCliffCard.classList.add('visible');
+          }
+        } catch { showToast('Could not parse saved raw data.'); }
+      });
+      simSavedList.appendChild(el);
+    });
+  } catch { /* ignore */ }
+}
+
+async function populateSimDutSelect() {
+  try {
+    const duts = await fetch('/api/duts').then(r => r.json());
+    simCliffDutSel.innerHTML = '<option value="">— None —</option>';
+    duts.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = `${d.part_number} / ${d.serial_number || 'no SN'}`;
+      simCliffDutSel.appendChild(o);
+    });
+  } catch { /* ignore */ }
+}
+
+// ── Test Bed sub-tabs ─────────────────────────────────────────
+const subAiBtn  = document.getElementById('sub-ai');
+const subDutBtn = document.getElementById('sub-dut');
+const aiPanel   = document.getElementById('testbed-ai-panel');
+const dutPanel  = document.getElementById('testbed-dut-panel');
+
+subAiBtn.addEventListener('click', () => {
+  subAiBtn.classList.add('active');
+  subDutBtn.classList.remove('active');
+  aiPanel.style.display  = 'flex';
+  dutPanel.style.display = 'none';
+});
+
+subDutBtn.addEventListener('click', () => {
+  subDutBtn.classList.add('active');
+  subAiBtn.classList.remove('active');
+  aiPanel.style.display  = 'none';
+  dutPanel.style.display = 'flex';
+  loadDuts();
+});
+
+// ── DUT CRUD ──────────────────────────────────────────────────
+const dutList       = document.getElementById('dut-list');
+const dutAddBtn     = document.getElementById('dut-add-btn');
+const dutExportBtn  = document.getElementById('dut-export-btn');
+const dutAddForm    = document.getElementById('dut-add-form');
+const dutFormCancel = document.getElementById('dut-form-cancel');
+const dutFormSave   = document.getElementById('dut-form-save');
+const dutFpEmpty    = document.getElementById('dut-fp-empty');
+const dutFpTableWrap= document.getElementById('dut-fp-table-wrap');
+const dutFpIdentity = document.getElementById('dut-fp-identity');
+
+let duts          = [];
+let activeDutId   = null;
+
+dutAddBtn.addEventListener('click', () => { dutAddForm.classList.toggle('open'); });
+dutFormCancel.addEventListener('click', () => dutAddForm.classList.remove('open'));
+dutExportBtn.addEventListener('click', () => { window.location = '/api/duts/export/csv'; });
+
+dutFormSave.addEventListener('click', async () => {
+  const payload = {
+    part_number:   document.getElementById('dut-part-number').value,
+    serial_number: document.getElementById('dut-serial').value.trim(),
+    silicon_rev:   document.getElementById('dut-rev').value.trim(),
+    board_id:      document.getElementById('dut-board').value.trim(),
+    notes:         document.getElementById('dut-notes').value.trim(),
+  };
+  const r = await fetch('/api/duts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  if (r.ok) {
+    dutAddForm.classList.remove('open');
+    document.getElementById('dut-serial').value = '';
+    document.getElementById('dut-rev').value = '';
+    document.getElementById('dut-board').value = '';
+    document.getElementById('dut-notes').value = '';
+    loadDuts();
+  } else {
+    showToast('Failed to add DUT.');
+  }
+});
+
+async function loadDuts() {
+  const r = await fetch('/api/duts');
+  duts = await r.json();
+  renderDutList();
+}
+
+function renderDutList() {
+  if (!duts.length) {
+    dutList.innerHTML = '<div style="color:var(--text-dim);font-size:.8rem;padding:8px;">No DUTs yet.</div>';
+    return;
+  }
+  dutList.innerHTML = '';
+  duts.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'dut-row' + (d.id === activeDutId ? ' active' : '');
+    el.innerHTML = `
+      <div class="dut-pn-badge">${escapeHtml(d.part_number)}</div>
+      <div class="dut-sn">${escapeHtml(d.serial_number || '—')}</div>
+      <div class="dut-bid">${escapeHtml(d.board_id || '')}${d.silicon_rev ? ' · ' + escapeHtml(d.silicon_rev) : ''}</div>
+      <div style="font-size:.68rem;color:var(--text-dim);margin-top:2px;">${d.run_count} run(s)</div>`;
+    el.addEventListener('click', () => selectDut(d.id));
+    dutList.appendChild(el);
+  });
+}
+
+async function selectDut(did) {
+  activeDutId = did;
+  renderDutList();
+  const { dut, runs, summary } = await fetch(`/api/duts/${did}/runs`).then(r => r.json());
+  dutFpIdentity.innerHTML = `
+    <span>${escapeHtml(dut.part_number)}</span>
+    <span class="sub"> / ${escapeHtml(dut.serial_number || 'no SN')} / ${escapeHtml(dut.board_id || 'no board')}</span>
+    <button class="btn-danger" style="margin-left:auto;font-size:.68rem;" onclick="deleteDut(${did})">Delete DUT</button>`;
+  dutFpEmpty.style.display     = 'none';
+  dutFpTableWrap.style.display = 'block';
+  renderFingerprintTable(did, runs, summary);
+}
+
+async function deleteDut(did) {
+  if (!confirm('Delete this DUT and all its fingerprint runs?')) return;
+  await fetch(`/api/duts/${did}`, { method: 'DELETE' });
+  activeDutId = null;
+  dutFpEmpty.style.display     = '';
+  dutFpTableWrap.style.display = 'none';
+  dutFpIdentity.innerHTML      = '<span>Select a DUT to view fingerprint runs</span>';
+  loadDuts();
+}
+
+// ── Fingerprint table ─────────────────────────────────────────
+const FP_COLS = [
+  { key: 'bias_cliff_v',   label: 'Cliff V',   cat: 'A', unit: 'V'    },
+  { key: 'rise_time_ms',   label: 'Rise ms',   cat: 'A', unit: 'ms'   },
+  { key: 'gnd_curr_slope', label: 'GND Slope', cat: 'A', unit: 'mA/V' },
+  { key: 'overshoot_v',    label: 'Overshoot', cat: 'A', unit: 'V'    },
+  { key: 'thermal_drift',  label: 'Therm Drift',cat:'A', unit: 'mV/°C'},
+  { key: 'vout_accuracy',  label: 'Vout Acc',  cat: 'B', unit: '%'    },
+  { key: 'dropout_v',      label: 'Dropout V', cat: 'B', unit: 'V'    },
+  { key: 'line_reg',       label: 'Line Reg',  cat: 'B', unit: '%/V'  },
+  { key: 'load_reg',       label: 'Load Reg',  cat: 'B', unit: '%/A'  },
+  { key: 'gnd_curr_nom',   label: 'GND Nom',   cat: 'B', unit: 'mA'   },
+  { key: 'shutdown_leak',  label: 'SD Leak',   cat: 'B', unit: 'µA'   },
+  { key: 'en_thresh_v',    label: 'EN Thr',    cat: 'B', unit: 'V'    },
+  { key: 'en_hyst_v',      label: 'EN Hyst',   cat: 'B', unit: 'V'    },
+  { key: 'psrr_db',        label: 'PSRR',      cat: 'B', unit: 'dB'   },
+  { key: 'noise_vrms',     label: 'Noise',     cat: 'B', unit: 'µVrms'},
+];
+
+function renderFingerprintTable(did, runs, summary) {
+  const thead = document.getElementById('dut-fp-thead');
+  const tbody = document.getElementById('dut-fp-tbody');
+
+  // Build index of existing runs by run_number
+  const runMap = {};
+  runs.forEach(r => { runMap[r.run_number] = r; });
+
+  // Header row 1: category groups
+  const catRow = document.createElement('tr');
+  catRow.innerHTML = '<th class="fp-sticky-col"></th>';
+  // Count cols per category
+  const catACols = FP_COLS.filter(c => c.cat === 'A').length;
+  const catBCols = FP_COLS.filter(c => c.cat === 'B').length;
+  catRow.innerHTML += `<th class="fp-cat-a-header" colspan="${catACols}">Category A — Canary Stress</th>`;
+  catRow.innerHTML += `<th class="fp-cat-b-header" colspan="${catBCols}">Category B — Baseline Health</th>`;
+  catRow.innerHTML += '<th></th>'; // save button col
+
+  // Header row 2: column labels
+  const labelRow = document.createElement('tr');
+  labelRow.innerHTML = '<th class="fp-sticky-col">Run</th>';
+  FP_COLS.forEach(c => {
+    const cls = c.cat === 'A' ? 'fp-cat-a-header' : 'fp-cat-b-header';
+    labelRow.innerHTML += `<th class="${cls}" title="${c.key}">${c.label}<br><span style="font-weight:400;">${c.unit}</span></th>`;
+  });
+  labelRow.innerHTML += '<th></th>';
+
+  thead.innerHTML = '';
+  thead.appendChild(catRow);
+  thead.appendChild(labelRow);
+
+  tbody.innerHTML = '';
+
+  for (let rn = 1; rn <= 5; rn++) {
+    const tr = document.createElement('tr');
+    if (rn === 1) tr.className = 'fp-run-warmup';
+    const label = rn === 1 ? 'Run 1 (warm-up)' : `Run ${rn}`;
+    tr.innerHTML = `<td class="fp-sticky-col fp-run-label">${label}</td>`;
+
+    FP_COLS.forEach(col => {
+      const existing = runMap[rn] ? runMap[rn][col.key] : null;
+      const td = document.createElement('td');
+      td.innerHTML = `<input class="fp-input" type="number" step="any"
+        id="fp-r${rn}-${col.key}"
+        value="${existing !== null && existing !== undefined ? existing : ''}"
+        placeholder="—" />`;
+      tr.appendChild(td);
+    });
+
+    // Save button
+    const saveTd = document.createElement('td');
+    saveTd.innerHTML = `<button class="fp-save-btn" data-run="${rn}">Save</button>`;
+    saveTd.querySelector('button').addEventListener('click', () => saveRun(did, rn));
+    tr.appendChild(saveTd);
+    tbody.appendChild(tr);
+  }
+
+  // Mean row
+  const meanTr = document.createElement('tr');
+  meanTr.className = 'fp-run-mean';
+  meanTr.innerHTML = '<td class="fp-sticky-col">Mean (Runs 2-5)</td>';
+  FP_COLS.forEach(col => {
+    const v = summary.mean[col.key];
+    meanTr.innerHTML += `<td style="text-align:right;">${v !== null && v !== undefined ? v.toFixed(4) : '—'}</td>`;
+  });
+  meanTr.innerHTML += '<td></td>';
+  tbody.appendChild(meanTr);
+
+  // Sigma row
+  const sigmaTr = document.createElement('tr');
+  sigmaTr.className = 'fp-run-sigma';
+  sigmaTr.innerHTML = '<td class="fp-sticky-col">σ (Runs 2-5)</td>';
+  FP_COLS.forEach(col => {
+    const v = summary.sigma[col.key];
+    sigmaTr.innerHTML += `<td style="text-align:right;">${v !== null && v !== undefined ? v.toFixed(4) : '—'}</td>`;
+  });
+  sigmaTr.innerHTML += '<td></td>';
+  tbody.appendChild(sigmaTr);
+}
+
+async function saveRun(did, runNum) {
+  const data = {};
+  FP_COLS.forEach(col => {
+    const el = document.getElementById(`fp-r${runNum}-${col.key}`);
+    const v  = el ? el.value.trim() : '';
+    data[col.key] = v !== '' ? parseFloat(v) : null;
+  });
+  const r = await fetch(`/api/duts/${did}/runs/${runNum}`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data),
+  });
+  if (r.ok) {
+    showToast(`Run ${runNum} saved.`);
+    selectDut(did);   // reload to recompute mean/sigma
+  } else {
+    showToast('Failed to save run.');
+  }
+}
+</script>
+</body>
+</html>
