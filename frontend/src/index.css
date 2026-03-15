@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global dark theme defaults */
+body {
+  @apply bg-surface-dark text-gray-100 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-surface-dark;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surface-light rounded;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-600;
+}

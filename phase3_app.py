@@ -277,6 +277,9 @@ def _run_repo_build() -> None:
 # ---------------------------------------------------------------------------
 
 app = FastAPI(title="RAD Research Tool — Phase 3")
+# Serve built React assets first, then legacy static files
+if Path("static/dist").exists():
+    app.mount("/assets", StaticFiles(directory="static/dist/assets"), name="assets")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Mount feature routers (Phase 3)
@@ -872,6 +875,22 @@ async def get_sim_result(sid: int):
 async def delete_sim_result(sid: int):
     phase4_db.delete_sim_result(sid)
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# SPA catch-all — serves React frontend for non-API routes
+# MUST be registered LAST (after all /api/* routes)
+# ---------------------------------------------------------------------------
+
+@app.get("/{path:path}")
+async def spa_catchall(path: str):
+    if path.startswith("api/"):
+        raise HTTPException(404, f"API route not found: /{path}")
+    dist = Path("static/dist/index.html")
+    if dist.exists():
+        return FileResponse(str(dist))
+    # Fallback to legacy monolith during transition
+    return FileResponse("static/index.html")
 
 
 # ---------------------------------------------------------------------------
